@@ -1011,10 +1011,18 @@ function renderDocsTab(wrap, p) {
     info.appendChild(div({ style: { fontSize: 13, fontWeight: 500, color: docData.done ? 'var(--text3)' : 'var(--text1)', textDecoration: docData.done ? 'line-through' : 'none' } }, [d.label]));
     if (docData.done && docData.doneAt) info.appendChild(div({ style: { fontSize: 11, color: 'var(--green)' } }, [fmtDate(docData.doneAt)]));
     if (docData.note) info.appendChild(div({ style: { fontSize: 11, color: 'var(--text3)' } }, [docData.note]));
+    if (docData.driveUrl) {
+      const linkEl = el('a', {
+        href: docData.driveUrl,
+        target: '_blank',
+        style: { fontSize: 11, color: 'var(--blue)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 3, marginTop: 2 },
+      }, ['🔗 Mở trên Drive']);
+      info.appendChild(linkEl);
+    }
     row.appendChild(info);
     row.appendChild(btn({ className: 'btn btn-ghost btn-sm', style: { fontSize: 12 }, onClick: e => {
       e.stopPropagation();
-      setState({ modal: 'doc_note', modalData: { projectId: p.id, docId: d.id, label: d.label, note: docData.note || '' } });
+      setState({ modal: 'doc_note', modalData: { projectId: p.id, docId: d.id, label: d.label, note: docData.note || '', driveUrl: docData.driveUrl || '' } });
     }}, ['📝']));
     docsCard.appendChild(row);
   });
@@ -1375,19 +1383,32 @@ function renderModal(app) {
       div({ className: 'modal-title display' }, ['Ghi chú: ' + d.label]),
       btn({ className: 'modal-close', onClick: () => setState({ modal: null, modalData: null }) }, ['×']),
     ]));
-    const noteInp = txt({ className: 'input', placeholder: 'Ghi chú cho giấy tờ này...', style: { height: 100, resize: 'vertical' } });
+    const driveInp = inp({ className: 'input', placeholder: 'https://drive.google.com/...', value: d.driveUrl || '', style: { marginBottom: 8 } });
+    const noteInp = txt({ className: 'input', placeholder: 'Ghi chú cho giấy tờ này...', style: { height: 80, resize: 'vertical' } });
     noteInp.value = d.note;
-    modal.appendChild(div({ className: 'field', style: { marginBottom: 14 } }, [noteInp]));
+    modal.appendChild(div({ className: 'field' }, [
+      el('label', { className: 'input-label' }, ['🔗 Link Google Drive']),
+      driveInp,
+      div({ style: { fontSize: 11, color: 'var(--text3)', marginTop: 4 } }, ['Dán link file trên Drive để truy cập nhanh']),
+    ]));
+    modal.appendChild(div({ className: 'field', style: { marginBottom: 14 } }, [
+      el('label', { className: 'input-label' }, ['📝 Ghi chú']),
+      noteInp,
+    ]));
     modal.appendChild(div({ style: { display: 'flex', gap: 8, justifyContent: 'flex-end' } }, [
       btn({ className: 'btn btn-secondary', onClick: () => setState({ modal: null, modalData: null }) }, ['Huỷ']),
       btn({ className: 'btn btn-primary', onClick: async () => {
         const projects = getProjects();
         const pidxFix = projects.findIndex(x => x.id === d.projectId);
         if (!projects[pidxFix].docs) projects[pidxFix].docs = {};
-        projects[pidxFix].docs[d.docId] = { ...projects[pidxFix].docs[d.docId], note: noteInp.value.trim() };
+        projects[pidxFix].docs[d.docId] = {
+          ...projects[pidxFix].docs[d.docId],
+          note: noteInp.value.trim(),
+          driveUrl: driveInp.value.trim(),
+        };
         await saveAndSync(projects);
         setState({ modal: null, modalData: null });
-        showToast('✅ Đã lưu ghi chú');
+        showToast('✅ Đã lưu');
       }}, ['Lưu']),
     ]));
   }
