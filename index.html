@@ -26,6 +26,8 @@
   --yellow-bg: #FEFAE8;
   --blue: #2E6DA4;
   --blue-bg: #EBF3FB;
+  --purple: #7B3FA0;
+  --purple-bg: #F0E8F8;
   --r8: 8px;
   --r12: 12px;
   --r16: 16px;
@@ -36,18 +38,17 @@
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: var(--font-body); background: var(--bg); color: var(--text1); min-height: 100vh; }
-
-/* Typography */
 .display { font-family: var(--font-display); }
-
-/* Layout */
 .app { display: flex; flex-direction: column; min-height: 100vh; }
 .header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 20px; height: 56px; display: flex; align-items: center; gap: 12px; position: sticky; top: 0; z-index: 100; box-shadow: var(--s1); }
 .header-logo { font-family: var(--font-display); font-size: 18px; font-weight: 700; color: var(--accent); letter-spacing: -.02em; flex: 1; }
-.header-logo span { color: var(--text3); font-weight: 400; font-size: 13px; font-family: var(--font-body); margin-left: 8px; }
+.sync-indicator { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text3); padding: 4px 8px; border-radius: 100px; background: var(--surface2); }
+.sync-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text3); flex-shrink: 0; }
+.sync-dot.ok { background: var(--green); }
+.sync-dot.err { background: var(--red); }
+.sync-dot.syncing { background: var(--yellow); animation: pulse 1s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
 .content { flex: 1; padding: 20px; max-width: 960px; margin: 0 auto; width: 100%; }
-
-/* Buttons */
 .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: var(--r8); border: none; font-family: var(--font-body); font-size: 13px; font-weight: 500; cursor: pointer; transition: all .15s; }
 .btn-primary { background: var(--accent); color: white; }
 .btn-primary:hover { background: var(--accent2); }
@@ -57,95 +58,70 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text1)
 .btn-ghost:hover { background: var(--surface2); }
 .btn-danger { background: var(--red-bg); color: var(--red); border: 1px solid #fca5a5; }
 .btn-sm { padding: 5px 10px; font-size: 12px; }
-
-/* Input */
 .input { width: 100%; padding: 9px 12px; border: 1.5px solid var(--border); border-radius: var(--r8); font-family: var(--font-body); font-size: 13px; color: var(--text1); background: var(--surface); outline: none; transition: border-color .15s; }
 .input:focus { border-color: var(--accent); }
 .input-label { font-size: 11px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 5px; display: block; }
 .field { margin-bottom: 14px; }
-
-/* Modal */
 .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 200; display: flex; align-items: center; justify-content: center; padding: 16px; }
 .modal { background: var(--surface); border-radius: var(--r16); padding: 24px; width: 100%; max-width: 560px; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,.15); }
 .modal-header { display: flex; align-items: center; margin-bottom: 20px; gap: 8px; }
 .modal-title { font-family: var(--font-display); font-size: 18px; font-weight: 600; flex: 1; color: var(--text1); }
 .modal-close { background: none; border: none; font-size: 22px; cursor: pointer; color: var(--text3); line-height: 1; padding: 4px; border-radius: 4px; }
 .modal-close:hover { color: var(--text1); background: var(--surface2); }
-
-/* Cards */
 .card { background: var(--surface); border-radius: var(--r12); border: 1px solid var(--border); box-shadow: var(--s1); padding: 16px; margin-bottom: 10px; cursor: pointer; transition: box-shadow .15s, transform .1s; }
 .card:hover { box-shadow: var(--s2); transform: translateY(-1px); }
-
-/* Badge */
 .badge { display: inline-flex; align-items: center; padding: 3px 8px; border-radius: 100px; font-size: 11px; font-weight: 600; }
-
-/* Status colors */
 .s-new { background: var(--blue-bg); color: var(--blue); }
 .s-inprogress { background: var(--yellow-bg); color: var(--yellow); }
-.s-review { background: #F0E8F8; color: #7B3FA0; }
+.s-review { background: var(--purple-bg); color: var(--purple); }
 .s-done { background: var(--green-bg); color: var(--green); }
 .s-cancelled { background: var(--surface2); color: var(--text3); }
-
-/* Progress bar */
 .progress-wrap { height: 6px; background: var(--surface2); border-radius: 3px; overflow: hidden; }
 .progress-bar { height: 100%; border-radius: 3px; background: var(--accent); transition: width .4s; }
-
-/* Toast */
-.toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--text1); color: white; padding: 10px 18px; border-radius: 100px; font-size: 13px; font-weight: 500; z-index: 999; box-shadow: var(--s2); opacity: 0; transition: opacity .2s; pointer-events: none; }
+.toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--text1); color: white; padding: 10px 18px; border-radius: 100px; font-size: 13px; font-weight: 500; z-index: 999; box-shadow: var(--s2); opacity: 0; transition: opacity .2s; pointer-events: none; white-space: nowrap; }
 .toast.show { opacity: 1; }
-
-/* Tabs */
 .tabs { display: flex; gap: 4px; background: var(--surface2); padding: 4px; border-radius: var(--r8); margin-bottom: 20px; }
 .tab { flex: 1; padding: 7px; border-radius: 6px; border: none; font-family: var(--font-body); font-size: 12px; font-weight: 500; cursor: pointer; background: transparent; color: var(--text3); transition: all .15s; text-align: center; }
 .tab.active { background: var(--surface); color: var(--text1); font-weight: 600; box-shadow: var(--s1); }
-
-/* Section header */
 .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
 .section-title { font-family: var(--font-display); font-size: 15px; font-weight: 600; color: var(--text1); }
-
-/* Timeline */
 .timeline { position: relative; padding-left: 20px; }
 .timeline::before { content: ''; position: absolute; left: 6px; top: 0; bottom: 0; width: 1.5px; background: var(--border); }
 .timeline-item { position: relative; margin-bottom: 14px; }
 .timeline-dot { position: absolute; left: -17px; top: 4px; width: 10px; height: 10px; border-radius: 50%; background: var(--accent); border: 2px solid var(--surface); }
 .timeline-dot.empty { background: var(--border); }
-
-/* Payment row */
 .payment-row { display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: var(--r8); border: 1px solid var(--border); margin-bottom: 8px; }
-
-/* Document row */
 .doc-row { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: var(--r8); border: 1px solid var(--border); margin-bottom: 6px; }
 .doc-check { width: 18px; height: 18px; border-radius: 4px; border: 2px solid var(--border); cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: all .1s; }
 .doc-check.checked { background: var(--green); border-color: var(--green); }
-
-/* Spinner */
 @keyframes spin { to { transform: rotate(360deg); } }
 .spinner { width: 32px; height: 32px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; }
-
-/* Empty state */
 .empty { text-align: center; padding: 60px 20px; color: var(--text3); }
 .empty-icon { font-size: 40px; margin-bottom: 12px; }
 .empty-text { font-size: 14px; margin-bottom: 16px; }
-
-/* Divider */
 .divider { height: 1px; background: var(--border); margin: 16px 0; }
-
-/* Grid */
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 @media (max-width: 600px) { .grid-2 { grid-template-columns: 1fr; } }
-
-/* Stats */
 .stat-card { background: var(--surface); border-radius: var(--r12); border: 1px solid var(--border); padding: 14px 16px; }
 .stat-value { font-family: var(--font-display); font-size: 26px; font-weight: 700; color: var(--accent); }
 .stat-label { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: .06em; margin-top: 2px; }
-
-/* Select */
 select.input { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%239E9890' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 32px; }
-
-/* Scrollbar */
 ::-webkit-scrollbar { width: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* Settings sections */
+.settings-section { background: var(--surface); border-radius: var(--r12); border: 1px solid var(--border); padding: 20px; margin-bottom: 16px; }
+.settings-section-title { font-weight: 600; font-size: 14px; color: var(--text1); margin-bottom: 4px; }
+.settings-section-desc { font-size: 12px; color: var(--text3); margin-bottom: 16px; line-height: 1.6; }
+.info-box { background: var(--blue-bg); border-radius: var(--r8); padding: 12px 14px; font-size: 12px; color: var(--blue); line-height: 1.7; margin-bottom: 14px; }
+.warn-box { background: var(--yellow-bg); border-radius: var(--r8); padding: 12px 14px; font-size: 12px; color: var(--yellow); line-height: 1.7; margin-bottom: 14px; }
+
+/* Telegram command log */
+.cmd-log { background: #1a1714; border-radius: var(--r8); padding: 12px 14px; font-family: monospace; font-size: 12px; color: #a8d8a8; margin-top: 10px; max-height: 160px; overflow-y: auto; }
+.cmd-log-line { margin-bottom: 4px; }
+.cmd-log-line.err { color: #f08080; }
+.cmd-log-line.info { color: #87ceeb; }
 </style>
 </head>
 <body>
@@ -154,7 +130,7 @@ select.input { appearance: none; background-image: url("data:image/svg+xml,%3Csv
 
 <script>
 // ── Constants ──────────────────────────────────────────────────────────────────
-const VERSION = 'Paz Project v1.0';
+const VERSION = 'Paz Project v2.0';
 const LS_KEY = 'paz_projects';
 const LS_CFG = 'paz_config';
 
@@ -165,8 +141,6 @@ const PROJECT_STATUS = {
   done:       { label: 'Hoàn thành', icon: '✅', cls: 's-done' },
   cancelled:  { label: 'Huỷ', icon: '❌', cls: 's-cancelled' },
 };
-
-const ROUND_LABELS = ['Brief', 'Concept', 'R1', 'R2', 'R3', 'R4', 'R5', 'Final'];
 
 const DOCS = [
   { id: 'quotation', label: 'Báo giá', icon: '📋' },
@@ -179,12 +153,16 @@ const DOCS = [
 
 // ── State ──────────────────────────────────────────────────────────────────────
 let S = {
-  view: 'list',        // 'list' | 'detail' | 'settings'
+  view: 'list',
   selectedId: null,
-  tab: 'overview',     // 'overview' | 'payments' | 'docs' | 'log'
+  tab: 'overview',
   modal: null,
+  modalData: null,
   filterStatus: 'all',
   search: '',
+  syncStatus: 'idle', // idle | syncing | ok | err
+  tgPolling: false,
+  tgLog: [],
 };
 
 // ── Data helpers ───────────────────────────────────────────────────────────────
@@ -244,7 +222,7 @@ function showToast(msg) {
   el.textContent = msg;
   el.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.remove('show'), 2500);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2800);
 }
 
 // ── DOM helpers ───────────────────────────────────────────────────────────────
@@ -253,10 +231,7 @@ function el(tag, attrs, children) {
   if (attrs) Object.entries(attrs).forEach(([k, v]) => {
     if (k === 'className') e.className = v;
     else if (k === 'style' && typeof v === 'object') Object.assign(e.style, v);
-    else if (k.startsWith('on')) {
-      const ev = k.slice(2).toLowerCase();
-      e.addEventListener(ev, v);
-    }
+    else if (k.startsWith('on')) { const ev = k.slice(2).toLowerCase(); e.addEventListener(ev, v); }
     else if (k === 'innerHTML') e.innerHTML = v;
     else e.setAttribute(k, v);
   });
@@ -266,19 +241,122 @@ function el(tag, attrs, children) {
   });
   return e;
 }
-const div = (a, c) => el('div', a, c);
+const div  = (a, c) => el('div', a, c);
 const span = (a, c) => el('span', a, c);
-const btn = (a, c) => el('button', a, c);
-const inp = a => el('input', a);
-const txt = a => el('textarea', a);
+const btn  = (a, c) => el('button', a, c);
+const inp  = a => el('input', a);
+const txt  = a => el('textarea', a);
 
-// ── setState ───────────────────────────────────────────────────────────────────
 function setState(patch) {
   Object.assign(S, patch);
   render();
 }
 
-// ── Telegram notify ────────────────────────────────────────────────────────────
+// ── JSONBin Sync ───────────────────────────────────────────────────────────────
+const JSONBIN_BASE = 'https://api.jsonbin.io/v3';
+
+async function syncPush() {
+  const cfg = getConfig();
+  if (!cfg.jsonbinKey || !cfg.jsonbinBin) return false;
+  S.syncStatus = 'syncing';
+  updateSyncIndicator();
+  try {
+    const res = await fetch(`${JSONBIN_BASE}/b/${cfg.jsonbinBin}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Master-Key': cfg.jsonbinKey,
+      },
+      body: JSON.stringify({ projects: getProjects(), updatedAt: new Date().toISOString() }),
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    S.syncStatus = 'ok';
+    updateSyncIndicator();
+    return true;
+  } catch (e) {
+    S.syncStatus = 'err';
+    updateSyncIndicator();
+    return false;
+  }
+}
+
+async function syncPull() {
+  const cfg = getConfig();
+  if (!cfg.jsonbinKey || !cfg.jsonbinBin) return false;
+  S.syncStatus = 'syncing';
+  updateSyncIndicator();
+  try {
+    const res = await fetch(`${JSONBIN_BASE}/b/${cfg.jsonbinBin}/latest`, {
+      headers: { 'X-Master-Key': cfg.jsonbinKey },
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    const remote = data.record;
+    if (remote && Array.isArray(remote.projects)) {
+      saveProjects(remote.projects);
+      S.syncStatus = 'ok';
+      updateSyncIndicator();
+      return true;
+    }
+    throw new Error('Invalid data');
+  } catch (e) {
+    S.syncStatus = 'err';
+    updateSyncIndicator();
+    return false;
+  }
+}
+
+async function createJsonBin(key) {
+  const res = await fetch(`${JSONBIN_BASE}/b`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Master-Key': key,
+      'X-Bin-Name': 'paz-project',
+      'X-Bin-Private': 'true',
+    },
+    body: JSON.stringify({ projects: getProjects(), updatedAt: new Date().toISOString() }),
+  });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const data = await res.json();
+  return data.metadata.id;
+}
+
+function updateSyncIndicator() {
+  const dot = document.getElementById('sync-dot');
+  const lbl = document.getElementById('sync-label');
+  if (!dot || !lbl) return;
+  const map = {
+    idle:    { cls: '',        text: 'Chưa sync' },
+    syncing: { cls: 'syncing', text: 'Đang sync…' },
+    ok:      { cls: 'ok',      text: 'Đã sync' },
+    err:     { cls: 'err',     text: 'Lỗi sync' },
+  };
+  const s = map[S.syncStatus] || map.idle;
+  dot.className = 'sync-dot ' + s.cls;
+  lbl.textContent = s.text;
+}
+
+// Auto pull on load & every 60s
+async function initSync() {
+  const cfg = getConfig();
+  if (cfg.jsonbinKey && cfg.jsonbinBin) {
+    const ok = await syncPull();
+    if (ok) { render(); showToast('☁️ Đã tải dữ liệu từ cloud'); }
+  }
+}
+setInterval(async () => {
+  const cfg = getConfig();
+  if (cfg.jsonbinKey && cfg.jsonbinBin) await syncPull();
+}, 60000);
+
+// Helper: save + push
+async function saveAndSync(projects) {
+  saveProjects(projects);
+  syncPush();
+}
+
+// ── Telegram ───────────────────────────────────────────────────────────────────
 async function tgNotify(msg) {
   const cfg = getConfig();
   if (!cfg.tgToken || !cfg.tgChatId) return;
@@ -286,33 +364,281 @@ async function tgNotify(msg) {
     await fetch(`https://api.telegram.org/bot${cfg.tgToken}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: cfg.tgChatId, text: msg, parse_mode: 'HTML' })
+      body: JSON.stringify({ chat_id: cfg.tgChatId, text: msg, parse_mode: 'HTML' }),
     });
   } catch {}
 }
 
+// ── Telegram Polling ───────────────────────────────────────────────────────────
+let lastUpdateId = 0;
+let pollingTimer = null;
+
+function tgLog(line, type = '') {
+  S.tgLog.unshift({ line, type, ts: new Date().toLocaleTimeString('vi-VN') });
+  if (S.tgLog.length > 30) S.tgLog.pop();
+  const logEl = document.getElementById('tg-cmd-log');
+  if (logEl) {
+    logEl.innerHTML = S.tgLog.map(l =>
+      `<div class="cmd-log-line ${l.type}">[${l.ts}] ${l.line}</div>`
+    ).join('');
+  }
+}
+
+async function processTgUpdate(update) {
+  const cfg = getConfig();
+  const msg = update.message || update.edited_message;
+  if (!msg || !msg.text) return;
+
+  const chatId = String(msg.chat.id);
+  const allowedChatId = String(cfg.tgChatId || '').replace('@', '');
+
+  // Security: only respond to configured chat
+  if (chatId !== allowedChatId && ('-100' + chatId) !== allowedChatId) {
+    return;
+  }
+
+  const text = msg.text.trim();
+  tgLog('← ' + text, 'info');
+
+  // ── /list ──────────────────────────────────────────────────────────────────
+  if (text === '/list' || text === '/list@' + (cfg.tgBotUsername || '')) {
+    const projects = getProjects();
+    if (!projects.length) {
+      await tgNotify('📭 Chưa có dự án nào.');
+      return;
+    }
+    const active = projects.filter(p => p.status !== 'done' && p.status !== 'cancelled');
+    const lines = active.length ? active : projects.slice(0, 10);
+    let reply = `📋 <b>Danh sách dự án</b> (${active.length} đang chạy)\n\n`;
+    lines.forEach((p, i) => {
+      const st = PROJECT_STATUS[p.status] || PROJECT_STATUS.new;
+      reply += `${i+1}. <b>${p.name}</b> — ${st.icon} ${st.label}\n`;
+      if (p.client) reply += `   👤 ${p.client}\n`;
+      if (p.contractValue) reply += `   💰 ${fmtMoney(p.contractValue)}\n`;
+      if (p.deadline) reply += `   📅 ${fmtDate(p.deadline)}\n`;
+      reply += '\n';
+    });
+    reply += `\nID để dùng lệnh:\n`;
+    lines.forEach((p, i) => reply += `${i+1}. <code>${p.id}</code> — ${p.name}\n`);
+    await tgNotify(reply);
+    tgLog('→ /list OK');
+
+  // ── /add ───────────────────────────────────────────────────────────────────
+  } else if (text.startsWith('/add')) {
+    const parts = text.slice(4).trim();
+    // Format: /add Tên dự án | Khách hàng | Giá trị | Deadline(YYYY-MM-DD)
+    if (!parts) {
+      await tgNotify(
+        '📝 <b>Cách dùng /add:</b>\n\n' +
+        '<code>/add Tên dự án | Tên khách | Giá trị | Deadline</code>\n\n' +
+        'Ví dụ:\n' +
+        '<code>/add Logo Cafe Bình Yên | Nguyễn Văn A | 5000000 | 2025-06-30</code>\n\n' +
+        'Chỉ tên dự án là bắt buộc, các trường còn lại có thể bỏ qua:\n' +
+        '<code>/add Rebrand ABC</code>'
+      );
+      return;
+    }
+    const fields = parts.split('|').map(s => s.trim());
+    const name         = fields[0] || '';
+    const client       = fields[1] || '';
+    const contractValue= fields[2] ? Number(fields[2].replace(/\D/g, '')) : null;
+    const deadline     = fields[3] || null;
+
+    if (!name) {
+      await tgNotify('❌ Thiếu tên dự án!');
+      return;
+    }
+    const newP = {
+      id: genId(), name, client, contractValue,
+      deadline, notes: null,
+      status: 'new', createdAt: new Date().toISOString(),
+      rounds: [
+        { label: 'Brief',   status: 'pending', date: null, note: '', feedback: '' },
+        { label: 'Concept', status: 'pending', date: null, note: '', feedback: '' },
+        { label: 'R1',      status: 'pending', date: null, note: '', feedback: '' },
+        { label: 'R2',      status: 'pending', date: null, note: '', feedback: '' },
+        { label: 'Final',   status: 'pending', date: null, note: '', feedback: '' },
+      ],
+      payments: contractValue ? calcPayments(contractValue) : [],
+      docs: {}, logs: [],
+    };
+    const projects = getProjects();
+    projects.push(newP);
+    await saveAndSync(projects);
+
+    let reply = `✅ <b>Đã tạo dự án mới!</b>\n\n📁 <b>${name}</b>\n`;
+    if (client)        reply += `👤 ${client}\n`;
+    if (contractValue) reply += `💰 ${fmtMoney(contractValue)}\n`;
+    if (deadline)      reply += `📅 ${fmtDate(deadline)}\n`;
+    reply += `\n<code>ID: ${newP.id}</code>`;
+    await tgNotify(reply);
+    tgLog('→ /add OK: ' + name);
+    render();
+
+  // ── /status ────────────────────────────────────────────────────────────────
+  } else if (text.startsWith('/status')) {
+    const parts = text.slice(7).trim();
+    // Format: /status <id|số thứ tự> <new|inprogress|review|done|cancelled>
+    if (!parts) {
+      await tgNotify(
+        '🔄 <b>Cách dùng /status:</b>\n\n' +
+        '<code>/status &lt;ID hoặc số TT&gt; &lt;trạng thái&gt;</code>\n\n' +
+        'Trạng thái:\n' +
+        '• <code>new</code> — Mới\n' +
+        '• <code>inprogress</code> — Đang làm\n' +
+        '• <code>review</code> — Chờ duyệt\n' +
+        '• <code>done</code> — Hoàn thành\n' +
+        '• <code>cancelled</code> — Huỷ\n\n' +
+        'Ví dụ: <code>/status 1 inprogress</code>\n' +
+        'Hoặc:  <code>/status p_1234567890 done</code>\n\n' +
+        'Dùng /list để xem số thứ tự.'
+      );
+      return;
+    }
+    const tokens = parts.split(/\s+/);
+    const idOrNum = tokens[0];
+    const newStatus = tokens[1];
+
+    if (!newStatus || !PROJECT_STATUS[newStatus]) {
+      await tgNotify('❌ Trạng thái không hợp lệ!\nDùng: new | inprogress | review | done | cancelled');
+      return;
+    }
+
+    const projects = getProjects();
+    const activeList = projects.filter(p => p.status !== 'done' && p.status !== 'cancelled');
+    const displayList = activeList.length ? activeList : projects.slice(0, 10);
+
+    let proj;
+    if (/^\d+$/.test(idOrNum)) {
+      proj = displayList[Number(idOrNum) - 1];
+    } else {
+      proj = projects.find(p => p.id === idOrNum);
+    }
+
+    if (!proj) {
+      await tgNotify('❌ Không tìm thấy dự án!\nDùng /list để xem danh sách.');
+      return;
+    }
+
+    const idx = projects.findIndex(p => p.id === proj.id);
+    projects[idx].status = newStatus;
+    if (newStatus === 'done') projects[idx].completedAt = new Date().toISOString();
+    await saveAndSync(projects);
+
+    const st = PROJECT_STATUS[newStatus];
+    await tgNotify(`${st.icon} <b>Đã cập nhật trạng thái!</b>\n\n📁 ${proj.name}\n${st.icon} ${st.label}`);
+    tgLog('→ /status OK: ' + proj.name + ' → ' + newStatus);
+    render();
+
+  // ── /help ──────────────────────────────────────────────────────────────────
+  } else if (text === '/help' || text === '/start') {
+    await tgNotify(
+      '👋 <b>Paz Project Bot</b>\n\n' +
+      'Các lệnh hỗ trợ:\n\n' +
+      '📋 /list — Xem danh sách dự án\n\n' +
+      '➕ /add — Thêm dự án mới\n' +
+      '<code>/add Tên | Khách | Giá trị | Deadline</code>\n\n' +
+      '🔄 /status — Cập nhật trạng thái\n' +
+      '<code>/status &lt;số TT&gt; &lt;trạng thái&gt;</code>\n\n' +
+      '❓ /help — Hiển thị trợ giúp\n\n' +
+      '<i>Tip: Dùng /list trước để xem số thứ tự dự án, rồi dùng /status để cập nhật.</i>'
+    );
+    tgLog('→ /help OK');
+  }
+}
+
+async function pollTelegram() {
+  const cfg = getConfig();
+  if (!cfg.tgToken || !cfg.tgChatId) return;
+  try {
+    const url = `https://api.telegram.org/bot${cfg.tgToken}/getUpdates?offset=${lastUpdateId + 1}&timeout=0&limit=10`;
+    const res = await fetch(url);
+    if (!res.ok) return;
+    const data = await res.json();
+    if (!data.ok || !data.result.length) return;
+
+    for (const update of data.result) {
+      if (update.update_id > lastUpdateId) {
+        lastUpdateId = update.update_id;
+        await processTgUpdate(update);
+      }
+    }
+  } catch (e) {
+    // silently fail
+  }
+}
+
+function startPolling() {
+  if (pollingTimer) return;
+  // Get offset first
+  const cfg = getConfig();
+  if (!cfg.tgToken) return;
+  fetch(`https://api.telegram.org/bot${cfg.tgToken}/getUpdates?limit=1`)
+    .then(r => r.json())
+    .then(d => {
+      if (d.ok && d.result.length) lastUpdateId = d.result[d.result.length - 1].update_id;
+      tgLog('🟢 Bot đang lắng nghe lệnh...', 'info');
+    }).catch(() => {});
+
+  pollingTimer = setInterval(pollTelegram, 3000);
+  S.tgPolling = true;
+}
+
+function stopPolling() {
+  if (pollingTimer) { clearInterval(pollingTimer); pollingTimer = null; }
+  S.tgPolling = false;
+  tgLog('🔴 Bot đã dừng.');
+}
+
 // ── Deadline checker ───────────────────────────────────────────────────────────
 function checkDeadlines() {
+  const cfg = getConfig();
   const projects = getProjects();
   const now = new Date();
+  const nowH = now.getHours();
+  const reminderHour = Number(cfg.reminderHour ?? 8); // default 8am
+
+  // Only fire reminders at the configured hour (±0, check each hour)
+  if (nowH !== reminderHour) return;
+
+  // Prevent double-firing within same hour
+  const todayKey = now.toISOString().slice(0, 13); // YYYY-MM-DDTHH
+  const lastFired = localStorage.getItem('paz_last_reminder');
+  if (lastFired === todayKey) return;
+  localStorage.setItem('paz_last_reminder', todayKey);
+
   projects.forEach(p => {
     if (p.status === 'done' || p.status === 'cancelled') return;
-    // Check payment due
-    (p.payments || []).forEach((pay, i) => {
+
+    // Payment reminders
+    (p.payments || []).forEach(pay => {
       if (pay.paid || !pay.dueDate) return;
       const due = new Date(pay.dueDate);
       const diff = Math.round((due - now) / 86400000);
-      if (diff === 1) {
-        tgNotify(`⏰ <b>Paz Project</b> — Nhắc thu tiền!\n\n📁 <b>${p.name}</b>\n👤 ${p.client}\n💰 ${fmtMoney(pay.amount)} (${pay.label})\n📅 Đến hạn: <b>ngày mai</b>`);
-      }
+      if (diff === 7)
+        tgNotify(`📅 <b>Paz Project</b> — Nhắc thu tiền (còn 1 tuần)\n\n📁 <b>${p.name}</b>\n👤 ${p.client || '—'}\n💰 ${fmtMoney(pay.amount)} (${pay.label})\n🗓 Đến hạn: ${fmtDate(pay.dueDate)}`);
+      else if (diff === 3)
+        tgNotify(`⚠️ <b>Paz Project</b> — Nhắc thu tiền (còn 3 ngày)\n\n📁 <b>${p.name}</b>\n👤 ${p.client || '—'}\n💰 ${fmtMoney(pay.amount)} (${pay.label})\n🗓 Đến hạn: ${fmtDate(pay.dueDate)}`);
+      else if (diff === 1)
+        tgNotify(`⏰ <b>Paz Project</b> — Nhắc thu tiền (ngày mai!)\n\n📁 <b>${p.name}</b>\n👤 ${p.client || '—'}\n💰 ${fmtMoney(pay.amount)} (${pay.label})\n🗓 Đến hạn: <b>${fmtDate(pay.dueDate)}</b>`);
+      else if (diff === 0)
+        tgNotify(`🚨 <b>Paz Project</b> — ĐẾN HẠN THU TIỀN HÔM NAY!\n\n📁 <b>${p.name}</b>\n👤 ${p.client || '—'}\n💰 ${fmtMoney(pay.amount)} (${pay.label})`);
     });
-    // Check project deadline
+
+    // Project deadline reminders
     if (p.deadline) {
       const due = new Date(p.deadline);
       const diff = Math.round((due - now) / 86400000);
-      if (diff === 3) {
-        tgNotify(`🔔 <b>Paz Project</b> — Deadline sắp đến!\n\n📁 <b>${p.name}</b>\n👤 ${p.client}\n📅 Deadline: <b>${fmtDate(p.deadline)}</b> (còn 3 ngày)`);
-      }
+      if (diff === 7)
+        tgNotify(`📅 <b>Paz Project</b> — Deadline còn 1 tuần\n\n📁 <b>${p.name}</b>\n👤 ${p.client || '—'}\n🗓 Deadline: ${fmtDate(p.deadline)}`);
+      else if (diff === 3)
+        tgNotify(`⚠️ <b>Paz Project</b> — Deadline còn 3 ngày\n\n📁 <b>${p.name}</b>\n👤 ${p.client || '—'}\n🗓 Deadline: ${fmtDate(p.deadline)}`);
+      else if (diff === 1)
+        tgNotify(`⏰ <b>Paz Project</b> — Deadline ngày mai!\n\n📁 <b>${p.name}</b>\n👤 ${p.client || '—'}\n🗓 Deadline: <b>${fmtDate(p.deadline)}</b>`);
+      else if (diff === 0)
+        tgNotify(`🚨 <b>Paz Project</b> — DEADLINE HÔM NAY!\n\n📁 <b>${p.name}</b>\n👤 ${p.client || '—'}\n🗓 Deadline: <b>${fmtDate(p.deadline)}</b>`);
+      else if (diff < 0)
+        tgNotify(`❗ <b>Paz Project</b> — Dự án QUÁ HẠN ${Math.abs(diff)} ngày!\n\n📁 <b>${p.name}</b>\n👤 ${p.client || '—'}\n🗓 Deadline đã qua: ${fmtDate(p.deadline)}`);
     }
   });
 }
@@ -322,13 +648,21 @@ function render() {
   const app = document.getElementById('app');
   app.innerHTML = '';
 
-  // Header
   const hdr = div({ className: 'header' });
-  const logo = div({ className: 'header-logo display' }, [
-    'Paz Project',
-    S.view === 'detail' ? span({ style: { color: 'var(--text3)', fontSize: 12, fontFamily: 'var(--font-body)', marginLeft: 8 } }, [getSelectedProject()?.name || '']) : null,
-  ].filter(Boolean));
+  const logo = div({ className: 'header-logo display' }, ['Paz Project']);
+  if (S.view === 'detail') {
+    logo.appendChild(span({ style: { color: 'var(--text3)', fontSize: 12, fontFamily: 'var(--font-body)', marginLeft: 8 } }, [getSelectedProject()?.name || '']));
+  }
   hdr.appendChild(logo);
+
+  // Sync indicator
+  const syncMap = { idle: '', syncing: 'syncing', ok: 'ok', err: 'err' };
+  const syncLabelMap = { idle: 'Chưa sync', syncing: 'Đang sync…', ok: 'Đã sync', err: 'Lỗi sync' };
+  const syncWrap = div({ className: 'sync-indicator' }, [
+    el('div', { id: 'sync-dot', className: 'sync-dot ' + (syncMap[S.syncStatus] || '') }),
+    el('span', { id: 'sync-label' }, [syncLabelMap[S.syncStatus] || 'Chưa sync']),
+  ]);
+  hdr.appendChild(syncWrap);
 
   if (S.view === 'detail') {
     hdr.appendChild(btn({ className: 'btn btn-ghost btn-sm', onClick: () => setState({ view: 'list', selectedId: null }) }, ['← Quay lại']));
@@ -349,8 +683,6 @@ function render() {
 // ── List View ──────────────────────────────────────────────────────────────────
 function renderList(wrap) {
   const projects = getProjects();
-
-  // Stats
   const total = projects.length;
   const active = projects.filter(p => p.status === 'inprogress').length;
   const totalValue = projects.reduce((s, p) => s + (Number(p.contractValue) || 0), 0);
@@ -370,23 +702,29 @@ function renderList(wrap) {
   });
   wrap.appendChild(statsGrid);
 
-  // Toolbar
   const toolbar = div({ style: { display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' } });
   const searchInp = inp({ className: 'input', placeholder: '🔍 Tìm dự án...', value: S.search, style: { flex: 1, minWidth: 160 }, onInput: e => { S.search = e.target.value; render(); } });
   toolbar.appendChild(searchInp);
-
-  const statusFilter = el('select', { className: 'input', style: { width: 140 }, onChange: e => setState({ filterStatus: e.target.value }) }, [
+  toolbar.appendChild(el('select', { className: 'input', style: { width: 150 }, onChange: e => setState({ filterStatus: e.target.value }) }, [
     el('option', { value: 'all' }, ['Tất cả trạng thái']),
     ...Object.entries(PROJECT_STATUS).map(([k, v]) => el('option', { value: k, ...(S.filterStatus === k ? { selected: '' } : {}) }, [v.icon + ' ' + v.label])),
-  ]);
-  toolbar.appendChild(statusFilter);
+  ]));
   toolbar.appendChild(btn({ className: 'btn btn-primary', onClick: () => setState({ modal: 'new_project' }) }, ['+ Dự án mới']));
+
+  // Sync button
+  const cfg = getConfig();
+  if (cfg.jsonbinKey && cfg.jsonbinBin) {
+    toolbar.appendChild(btn({ className: 'btn btn-secondary btn-sm', onClick: async () => {
+      const ok = await syncPull();
+      if (ok) { render(); showToast('☁️ Đã tải từ cloud!'); }
+      else showToast('❌ Sync thất bại!');
+    }}, ['☁️ Sync']));
+  }
   wrap.appendChild(toolbar);
 
-  // Filter
   let visible = projects;
   if (S.filterStatus !== 'all') visible = visible.filter(p => p.status === S.filterStatus);
-  if (S.search) visible = visible.filter(p => p.name.toLowerCase().includes(S.search.toLowerCase()) || (p.client || '').toLowerCase().includes(S.search.toLowerCase()));
+  if (S.search) visible = visible.filter(p => (p.name || '').toLowerCase().includes(S.search.toLowerCase()) || (p.client || '').toLowerCase().includes(S.search.toLowerCase()));
   visible = visible.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
   if (!visible.length) {
@@ -403,21 +741,18 @@ function renderList(wrap) {
     const progress = getProjectProgress(p);
     const totalPaid = (p.payments || []).filter(x => x.paid).reduce((s, x) => s + (Number(x.amount) || 0), 0);
     const totalAmt = Number(p.contractValue) || 0;
-    const collected = totalAmt ? Math.round(totalPaid / totalAmt * 100) : 0;
+    const pctCollected = totalAmt ? Math.round(totalPaid / totalAmt * 100) : 0;
     const currentRound = (p.rounds || []).find(r => r.status === 'inprogress') || (p.rounds || []).slice().reverse().find(r => r.status === 'done');
 
     const card = div({ className: 'card', onClick: () => setState({ view: 'detail', selectedId: p.id, tab: 'overview' }) });
-
-    // Top row
     const top = div({ style: { display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 10 } });
     const titleWrap = div({ style: { flex: 1, minWidth: 0 } });
-    titleWrap.appendChild(div({ style: { fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 600, color: 'var(--text1)', marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, [p.name]));
+    titleWrap.appendChild(div({ style: { fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 600, marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, [p.name]));
     titleWrap.appendChild(div({ style: { fontSize: 12, color: 'var(--text3)' } }, ['👤 ' + (p.client || 'Chưa có khách')]));
     top.appendChild(titleWrap);
     top.appendChild(span({ className: 'badge ' + st.cls }, [st.icon + ' ' + st.label]));
     card.appendChild(top);
 
-    // Progress
     const progWrap = div({ style: { marginBottom: 10 } });
     progWrap.appendChild(div({ style: { display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text3)', marginBottom: 4 } }, [
       span({}, [currentRound ? '📍 ' + currentRound.label : '📍 Chưa bắt đầu']),
@@ -428,10 +763,9 @@ function renderList(wrap) {
     progWrap.appendChild(pb);
     card.appendChild(progWrap);
 
-    // Bottom
     const bot = div({ style: { display: 'flex', gap: 12, flexWrap: 'wrap' } });
     if (totalAmt) bot.appendChild(span({ style: { fontSize: 12, color: 'var(--text2)' } }, ['💰 ' + fmtMoney(totalAmt)]));
-    bot.appendChild(span({ style: { fontSize: 12, color: collected >= 100 ? 'var(--green)' : 'var(--text3)' } }, ['📥 Thu ' + collected + '%']));
+    bot.appendChild(span({ style: { fontSize: 12, color: pctCollected >= 100 ? 'var(--green)' : 'var(--text3)' } }, ['📥 Thu ' + pctCollected + '%']));
     if (p.deadline) {
       const daysLeft = Math.round((new Date(p.deadline) - new Date()) / 86400000);
       const color = daysLeft < 0 ? 'var(--red)' : daysLeft <= 3 ? 'var(--yellow)' : 'var(--text3)';
@@ -448,12 +782,10 @@ function renderDetail(wrap) {
   if (!p) { setState({ view: 'list' }); return; }
   const st = PROJECT_STATUS[p.status] || PROJECT_STATUS.new;
 
-  // Project header card
   const hCard = div({ style: { background: 'var(--surface)', borderRadius: 'var(--r16)', border: '1px solid var(--border)', padding: '20px', marginBottom: 16, boxShadow: 'var(--s1)' } });
-
   const hTop = div({ style: { display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 14 } });
   const hInfo = div({ style: { flex: 1 } });
-  hInfo.appendChild(div({ style: { fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 700, color: 'var(--text1)', marginBottom: 4 } }, [p.name]));
+  hInfo.appendChild(div({ style: { fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 700, marginBottom: 4 } }, [p.name]));
   const meta = div({ style: { display: 'flex', gap: 12, flexWrap: 'wrap', fontSize: 13, color: 'var(--text2)' } });
   meta.appendChild(span({}, ['👤 ' + (p.client || '—')]));
   if (p.contractValue) meta.appendChild(span({}, ['💰 ' + fmtMoney(p.contractValue)]));
@@ -469,33 +801,31 @@ function renderDetail(wrap) {
       projects[idx].completedAt = new Date().toISOString();
       await tgNotify(`✅ <b>Paz Project</b> — Dự án hoàn thành!\n\n📁 <b>${p.name}</b>\n👤 ${p.client}\n💰 ${fmtMoney(p.contractValue)}`);
     }
-    saveProjects(projects);
+    await saveAndSync(projects);
     render();
   }}, Object.entries(PROJECT_STATUS).map(([k, v]) => el('option', { value: k, ...(p.status === k ? { selected: '' } : {}) }, [v.icon + ' ' + v.label])));
   hTop.appendChild(stSelect);
   hCard.appendChild(hTop);
 
-  // Progress bar
   const progress = getProjectProgress(p);
   const pb = div({ className: 'progress-wrap' });
   pb.appendChild(div({ className: 'progress-bar', style: { width: progress + '%' } }));
   hCard.appendChild(div({ style: { marginBottom: 6, fontSize: 12, color: 'var(--text3)' } }, ['Tiến độ tổng: ' + progress + '%']));
   hCard.appendChild(pb);
 
-  // Action buttons
   const actions = div({ style: { display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' } });
   actions.appendChild(btn({ className: 'btn btn-secondary btn-sm', onClick: () => setState({ modal: 'edit_project' }) }, ['✏️ Sửa thông tin']));
   actions.appendChild(btn({ className: 'btn btn-secondary btn-sm', onClick: () => setState({ modal: 'add_log' }) }, ['📝 Thêm nhật ký']));
   actions.appendChild(btn({ className: 'btn btn-secondary btn-sm', onClick: () => {
     if (!confirm('Xóa dự án "' + p.name + '"?')) return;
-    saveProjects(getProjects().filter(x => x.id !== p.id));
+    const projects = getProjects().filter(x => x.id !== p.id);
+    saveAndSync(projects);
     setState({ view: 'list', selectedId: null });
     showToast('🗑 Đã xóa dự án');
   }}, ['🗑']));
   hCard.appendChild(actions);
   wrap.appendChild(hCard);
 
-  // Tabs
   const tabs = div({ className: 'tabs' });
   ['overview', 'payments', 'docs', 'log'].forEach((t, i) => {
     const labels = ['📋 Tổng quan', '💰 Thanh toán', '📂 Giấy tờ', '📖 Nhật ký'];
@@ -511,7 +841,6 @@ function renderDetail(wrap) {
 
 // ── Overview Tab ───────────────────────────────────────────────────────────────
 function renderOverviewTab(wrap, p) {
-  // Rounds
   const roundsCard = div({ style: { background: 'var(--surface)', borderRadius: 'var(--r12)', border: '1px solid var(--border)', padding: 16, marginBottom: 12 } });
   const rHeader = div({ className: 'section-header' });
   rHeader.appendChild(div({ className: 'section-title' }, ['🎨 Rounds thiết kế']));
@@ -524,12 +853,11 @@ function renderOverviewTab(wrap, p) {
     const timeline = div({ className: 'timeline' });
     p.rounds.forEach(r => {
       const item = div({ className: 'timeline-item' });
-      const dot = div({ className: 'timeline-dot' + (r.status !== 'done' && r.status !== 'inprogress' ? ' empty' : '') });
-      item.appendChild(dot);
+      item.appendChild(div({ className: 'timeline-dot' + (r.status !== 'done' && r.status !== 'inprogress' ? ' empty' : '') }));
       const content = div({ style: { paddingLeft: 4 } });
       const rTop = div({ style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 } });
       rTop.appendChild(div({ style: { fontWeight: 600, fontSize: 13 } }, [r.label]));
-      const rStatusMap = { pending: { l: 'Chưa làm', bg: '#f3f4f6', c: '#6b7280' }, inprogress: { l: 'Đang làm', bg: 'var(--yellow-bg)', c: 'var(--yellow)' }, review: { l: 'Chờ duyệt', bg: '#f0e8f8', c: '#7b3fa0' }, done: { l: 'Xong', bg: 'var(--green-bg)', c: 'var(--green)' } };
+      const rStatusMap = { pending: { l: 'Chưa làm', bg: '#f3f4f6', c: '#6b7280' }, inprogress: { l: 'Đang làm', bg: 'var(--yellow-bg)', c: 'var(--yellow)' }, review: { l: 'Chờ duyệt', bg: 'var(--purple-bg)', c: 'var(--purple)' }, done: { l: 'Xong', bg: 'var(--green-bg)', c: 'var(--green)' } };
       const rs = rStatusMap[r.status] || rStatusMap.pending;
       rTop.appendChild(span({ style: { fontSize: 11, background: rs.bg, color: rs.c, padding: '2px 8px', borderRadius: 100, fontWeight: 600 } }, [rs.l]));
       if (r.date) rTop.appendChild(span({ style: { fontSize: 11, color: 'var(--text3)' } }, [fmtDate(r.date)]));
@@ -543,11 +871,10 @@ function renderOverviewTab(wrap, p) {
   }
   wrap.appendChild(roundsCard);
 
-  // Notes
   if (p.notes) {
-    const notesCard = div({ style: { background: 'var(--yellow-bg)', borderRadius: 'var(--r12)', border: '1px solid #fde68a', padding: 14, marginBottom: 12 } });
+    const notesCard = div({ style: { background: 'var(--yellow-bg)', borderRadius: 'var(--r12)', border: '1px solid #fde68a', padding: 14 } });
     notesCard.appendChild(div({ style: { fontSize: 11, fontWeight: 700, color: 'var(--yellow)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '.04em' } }, ['📌 Ghi chú']));
-    notesCard.appendChild(div({ style: { fontSize: 13, color: 'var(--text1)', whiteSpace: 'pre-wrap' } }, [p.notes]));
+    notesCard.appendChild(div({ style: { fontSize: 13, whiteSpace: 'pre-wrap' } }, [p.notes]));
     wrap.appendChild(notesCard);
   }
 }
@@ -558,7 +885,6 @@ function renderPaymentsTab(wrap, p) {
   const totalPaid = (p.payments || []).filter(x => x.paid).reduce((s, x) => s + (Number(x.amount) || 0), 0);
   const remaining = totalAmt - totalPaid;
 
-  // Summary
   const sumCard = div({ style: { background: 'var(--surface)', borderRadius: 'var(--r12)', border: '1px solid var(--border)', padding: 16, marginBottom: 12 } });
   const sumGrid = div({ style: { display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10 } });
   [
@@ -574,7 +900,6 @@ function renderPaymentsTab(wrap, p) {
   sumCard.appendChild(sumGrid);
   wrap.appendChild(sumCard);
 
-  // Payment list
   const payCard = div({ style: { background: 'var(--surface)', borderRadius: 'var(--r12)', border: '1px solid var(--border)', padding: 16 } });
   const payHeader = div({ className: 'section-header' });
   payHeader.appendChild(div({ className: 'section-title' }, ['Đợt thanh toán']));
@@ -583,17 +908,14 @@ function renderPaymentsTab(wrap, p) {
 
   (p.payments || []).forEach((pay, i) => {
     const row = div({ className: 'payment-row' });
-    // Checkbox
-    const cb = div({ style: { width: 20, height: 20, borderRadius: 4, border: '2px solid ' + (pay.paid ? 'var(--green)' : 'var(--border)'), background: pay.paid ? 'var(--green)' : 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }, onClick: () => {
+    const cb = div({ style: { width: 20, height: 20, borderRadius: 4, border: '2px solid ' + (pay.paid ? 'var(--green)' : 'var(--border)'), background: pay.paid ? 'var(--green)' : 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }, onClick: async () => {
       const projects = getProjects();
       const pidx = projects.findIndex(x => x.id === p.id);
       projects[pidx].payments[i].paid = !pay.paid;
       projects[pidx].payments[i].paidAt = !pay.paid ? new Date().toISOString() : null;
-      saveProjects(projects);
-      if (!pay.paid) {
-        tgNotify(`💰 <b>Paz Project</b> — Đã thu tiền!\n\n📁 <b>${p.name}</b>\n👤 ${p.client}\n💵 ${fmtMoney(pay.amount)} (${pay.label})`);
-        showToast('✅ Đã ghi nhận thanh toán!');
-      }
+      if (!pay.paid) tgNotify(`💰 <b>Paz Project</b> — Đã thu tiền!\n\n📁 <b>${p.name}</b>\n👤 ${p.client}\n💵 ${fmtMoney(pay.amount)} (${pay.label})`);
+      await saveAndSync(projects);
+      showToast(!pay.paid ? '✅ Đã ghi nhận thanh toán!' : '↩️ Đã hoàn tác');
       render();
     }});
     if (pay.paid) cb.innerHTML = '<svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 6l3 3 5-5" stroke="white" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>';
@@ -606,10 +928,7 @@ function renderPaymentsTab(wrap, p) {
     row.appendChild(div({ style: { fontWeight: 700, fontSize: 14, color: pay.paid ? 'var(--text3)' : 'var(--accent)', fontFamily: 'var(--font-display)' } }, [fmtMoney(pay.amount)]));
     payCard.appendChild(row);
   });
-
-  if (!(p.payments || []).length) {
-    payCard.appendChild(div({ style: { color: 'var(--text3)', fontSize: 13 } }, ['Chưa có đợt thanh toán nào']));
-  }
+  if (!(p.payments || []).length) payCard.appendChild(div({ style: { color: 'var(--text3)', fontSize: 13 } }, ['Chưa có đợt thanh toán nào']));
   wrap.appendChild(payCard);
 }
 
@@ -617,34 +936,28 @@ function renderPaymentsTab(wrap, p) {
 function renderDocsTab(wrap, p) {
   const docsCard = div({ style: { background: 'var(--surface)', borderRadius: 'var(--r12)', border: '1px solid var(--border)', padding: 16 } });
   docsCard.appendChild(div({ className: 'section-title', style: { marginBottom: 14 } }, ['Giấy tờ & Hồ sơ']));
-
   const docs = p.docs || {};
   DOCS.forEach(d => {
     const docData = docs[d.id] || {};
     const row = div({ className: 'doc-row' });
-
-    // Checkbox
-    const cb = div({ className: 'doc-check' + (docData.done ? ' checked' : ''), onClick: () => {
+    const cb = div({ className: 'doc-check' + (docData.done ? ' checked' : ''), onClick: async () => {
       const projects = getProjects();
       const pidx = projects.findIndex(x => x.id === p.id);
       if (!projects[pidx].docs) projects[pidx].docs = {};
       const wasDone = projects[pidx].docs[d.id]?.done;
       projects[pidx].docs[d.id] = { ...projects[pidx].docs[d.id], done: !wasDone, doneAt: !wasDone ? new Date().toISOString() : null };
-      saveProjects(projects);
+      await saveAndSync(projects);
       if (!wasDone) showToast('✅ Đã đánh dấu ' + d.label);
       render();
     }});
     if (docData.done) cb.innerHTML = '<svg width="11" height="11" viewBox="0 0 11 11"><path d="M1.5 5.5l3 3 5-5" stroke="white" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>';
     row.appendChild(cb);
-
     row.appendChild(span({ style: { fontSize: 16 } }, [d.icon]));
     const info = div({ style: { flex: 1 } });
     info.appendChild(div({ style: { fontSize: 13, fontWeight: 500, color: docData.done ? 'var(--text3)' : 'var(--text1)', textDecoration: docData.done ? 'line-through' : 'none' } }, [d.label]));
     if (docData.done && docData.doneAt) info.appendChild(div({ style: { fontSize: 11, color: 'var(--green)' } }, [fmtDate(docData.doneAt)]));
     if (docData.note) info.appendChild(div({ style: { fontSize: 11, color: 'var(--text3)' } }, [docData.note]));
     row.appendChild(info);
-
-    // Note button
     row.appendChild(btn({ className: 'btn btn-ghost btn-sm', style: { fontSize: 12 }, onClick: e => {
       e.stopPropagation();
       setState({ modal: 'doc_note', modalData: { projectId: p.id, docId: d.id, label: d.label, note: docData.note || '' } });
@@ -661,7 +974,6 @@ function renderLogTab(wrap, p) {
   logHeader.appendChild(div({ className: 'section-title' }, ['Nhật ký liên lạc']));
   logHeader.appendChild(btn({ className: 'btn btn-primary btn-sm', onClick: () => setState({ modal: 'add_log' }) }, ['+ Thêm']));
   logCard.appendChild(logHeader);
-
   const logs = (p.logs || []).slice().reverse();
   if (!logs.length) {
     logCard.appendChild(div({ style: { color: 'var(--text3)', fontSize: 13 } }, ['Chưa có nhật ký nào']));
@@ -672,16 +984,15 @@ function renderLogTab(wrap, p) {
       item.appendChild(div({ className: 'timeline-dot' }));
       const content = div({ style: { paddingLeft: 4 } });
       content.appendChild(div({ style: { fontSize: 11, color: 'var(--text3)', marginBottom: 4 } }, [fmtDate(log.date) + (log.type ? ' · ' + log.type : '')]));
-      content.appendChild(div({ style: { fontSize: 13, color: 'var(--text1)', fontWeight: 500, marginBottom: 4 } }, [log.sent || '']));
+      content.appendChild(div({ style: { fontSize: 13, fontWeight: 500, marginBottom: 4 } }, [log.sent || '']));
       if (log.response) content.appendChild(div({ style: { fontSize: 12, color: 'var(--blue)', background: 'var(--blue-bg)', padding: '6px 10px', borderRadius: 6 } }, ['💬 Khách: ' + log.response]));
-      const delBtn = btn({ style: { background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 11, marginTop: 4 }, onClick: () => {
+      content.appendChild(btn({ style: { background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 11, marginTop: 4 }, onClick: async () => {
         const projects = getProjects();
         const pidx = projects.findIndex(x => x.id === p.id);
         projects[pidx].logs.splice(projects[pidx].logs.length - 1 - i, 1);
-        saveProjects(projects);
+        await saveAndSync(projects);
         render();
-      }}, ['🗑 Xoá']);
-      content.appendChild(delBtn);
+      }}, ['🗑 Xoá']));
       item.appendChild(content);
       timeline.appendChild(item);
     });
@@ -698,27 +1009,152 @@ function renderSettings(wrap) {
     div({ style: { fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 600 } }, ['Cài đặt']),
   ]));
 
-  const card = div({ style: { background: 'var(--surface)', borderRadius: 'var(--r12)', border: '1px solid var(--border)', padding: 20 } });
-  card.appendChild(div({ style: { fontWeight: 600, fontSize: 14, marginBottom: 14, color: 'var(--text1)' } }, ['🤖 Telegram thông báo']));
-  card.appendChild(div({ style: { fontSize: 12, color: 'var(--text3)', marginBottom: 14, lineHeight: 1.6 } }, ['Tạo bot Telegram mới qua @BotFather → lấy token → thêm bot vào nhóm/chat riêng → lấy Chat ID']));
+  // ── JSONBin Section ──────────────────────────────────────────────────────────
+  const jbCard = div({ className: 'settings-section' });
+  jbCard.appendChild(div({ className: 'settings-section-title' }, ['☁️ Sync đa thiết bị — JSONBin']));
+  jbCard.appendChild(div({ className: 'settings-section-desc' }, ['Dữ liệu sẽ tự đồng bộ mỗi phút khi mở app. Đăng ký miễn phí tại jsonbin.io → vào Account → Master Key.']));
 
-  const tokenInp = inp({ className: 'input', placeholder: 'Bot Token (ví dụ: 123456:ABCdef...)', value: cfg.tgToken || '', style: { marginBottom: 10 } });
-  const chatInp = inp({ className: 'input', placeholder: 'Chat ID (ví dụ: -100123456789)', value: cfg.tgChatId || '', style: { marginBottom: 14 } });
+  jbCard.appendChild(div({ className: 'info-box' }, [
+    '📋 Hướng dẫn setup:\n',
+    '1. Đăng ký tại jsonbin.io (miễn phí)\n',
+    '2. Vào Account Settings → API Keys → copy Master Key\n',
+    '3. Dán vào ô dưới → bấm "Tạo Bin mới"\n',
+    '4. Dùng trên thiết bị khác: nhập cùng Master Key + Bin ID',
+  ]));
 
-  const saveBtn = btn({ className: 'btn btn-primary', onClick: async () => {
-    const newCfg = { ...cfg, tgToken: tokenInp.value.trim(), tgChatId: chatInp.value.trim() };
+  const jbKeyInp = inp({ className: 'input', placeholder: '$2b$10$... (Master Key)', value: cfg.jsonbinKey || '' });
+  const jbBinInp = inp({ className: 'input', placeholder: 'Bin ID (để trống nếu chưa có)', value: cfg.jsonbinBin || '', style: { marginTop: 8 } });
+
+  const jbStatus = div({ style: { fontSize: 12, color: 'var(--text3)', marginTop: 8, minHeight: 20 } });
+
+  const jbBtnRow = div({ style: { display: 'flex', gap: 8, marginTop: 10 } });
+
+  jbBtnRow.appendChild(btn({ className: 'btn btn-primary', onClick: async () => {
+    const key = jbKeyInp.value.trim();
+    if (!key) { showToast('❌ Nhập Master Key!'); return; }
+    jbStatus.textContent = '⏳ Đang tạo bin...';
+    try {
+      const binId = await createJsonBin(key);
+      const newCfg = { ...cfg, jsonbinKey: key, jsonbinBin: binId };
+      saveConfig(newCfg);
+      jbBinInp.value = binId;
+      jbStatus.textContent = '✅ Tạo thành công! Bin ID: ' + binId;
+      jbStatus.style.color = 'var(--green)';
+      S.syncStatus = 'ok';
+      updateSyncIndicator();
+      showToast('✅ JSONBin đã sẵn sàng!');
+    } catch (e) {
+      jbStatus.textContent = '❌ Lỗi: ' + e.message + ' — Kiểm tra lại Master Key';
+      jbStatus.style.color = 'var(--red)';
+    }
+  }}, ['Tạo Bin mới']));
+
+  jbBtnRow.appendChild(btn({ className: 'btn btn-secondary', onClick: async () => {
+    const key = jbKeyInp.value.trim();
+    const binId = jbBinInp.value.trim();
+    if (!key || !binId) { showToast('❌ Nhập đủ Key và Bin ID!'); return; }
+    saveConfig({ ...cfg, jsonbinKey: key, jsonbinBin: binId });
+    jbStatus.textContent = '⏳ Đang kết nối...';
+    const ok = await syncPull();
+    if (ok) {
+      jbStatus.textContent = '✅ Kết nối thành công & đã tải dữ liệu!';
+      jbStatus.style.color = 'var(--green)';
+      render();
+      showToast('☁️ Sync thành công!');
+    } else {
+      jbStatus.textContent = '❌ Kết nối thất bại — Kiểm tra Key và Bin ID';
+      jbStatus.style.color = 'var(--red)';
+    }
+  }}, ['Kết nối Bin có sẵn']));
+
+  jbCard.appendChild(div({ className: 'field' }, [el('label', { className: 'input-label' }, ['Master Key']), jbKeyInp]));
+  jbCard.appendChild(div({ className: 'field' }, [el('label', { className: 'input-label' }, ['Bin ID']), jbBinInp]));
+  jbCard.appendChild(jbBtnRow);
+  jbCard.appendChild(jbStatus);
+
+  if (cfg.jsonbinBin) {
+    const binIdDisplay = div({ style: { marginTop: 12, padding: '8px 12px', background: 'var(--surface2)', borderRadius: 'var(--r8)', fontSize: 12, color: 'var(--text2)' } });
+    binIdDisplay.innerHTML = '🔑 Bin ID hiện tại: <code style="background:#e8e3dc;padding:2px 6px;border-radius:4px;font-size:11px;">' + cfg.jsonbinBin + '</code> — Dùng ID này để kết nối từ thiết bị khác';
+    jbCard.appendChild(binIdDisplay);
+  }
+  wrap.appendChild(jbCard);
+
+  // ── Telegram Section ─────────────────────────────────────────────────────────
+  const tgCard = div({ className: 'settings-section' });
+  tgCard.appendChild(div({ className: 'settings-section-title' }, ['🤖 Telegram Bot']));
+  tgCard.appendChild(div({ className: 'settings-section-desc' }, ['Nhận thông báo + điều khiển bằng lệnh /add, /list, /status trực tiếp từ Telegram.']));
+
+  tgCard.appendChild(div({ className: 'info-box' }, [
+    '📋 Hướng dẫn:\n',
+    '1. Nhắn @BotFather → /newbot → lấy Token\n',
+    '2. Nhắn /start cho bot của bạn\n',
+    '3. Nhắn @userinfobot để lấy Chat ID\n',
+    '4. Bật "Polling" để nhận lệnh từ Telegram',
+  ]));
+
+  const tokenInp = inp({ className: 'input', placeholder: 'Bot Token (1234567:ABCdef...)', value: cfg.tgToken || '' });
+  const chatInp = inp({ className: 'input', placeholder: 'Chat ID (123456789)', value: cfg.tgChatId || '', style: { marginTop: 8 } });
+
+  tgCard.appendChild(div({ className: 'field' }, [el('label', { className: 'input-label' }, ['Bot Token']), tokenInp]));
+  tgCard.appendChild(div({ className: 'field' }, [el('label', { className: 'input-label' }, ['Chat ID']), chatInp]));
+
+  // Reminder hour setting
+  const reminderHourInp = el('select', { className: 'input', style: { marginTop: 0 }, onChange: e => {
+    saveConfig({ ...getConfig(), reminderHour: Number(e.target.value) });
+    showToast('✅ Đã lưu giờ nhắc');
+  }}, Array.from({ length: 24 }, (_, h) => {
+    const label = h.toString().padStart(2,'0') + ':00';
+    const saved = Number(cfg.reminderHour ?? 8);
+    return el('option', { value: h, ...(saved === h ? { selected: '' } : {}) }, [label + (h === 8 ? ' (mặc định)' : '')]);
+  }));
+  tgCard.appendChild(div({ className: 'field', style: { marginTop: 12 } }, [
+    el('label', { className: 'input-label' }, ['⏰ Giờ gửi nhắc nhở hàng ngày']),
+    reminderHourInp,
+    div({ style: { fontSize: 11, color: 'var(--text3)', marginTop: 5 } }, ['Bot sẽ kiểm tra và gửi nhắc deadline/thanh toán lúc giờ này. Nhắc ở mốc: 7 ngày · 3 ngày · 1 ngày · đúng ngày · quá hạn.']),
+  ]));
+
+  const tgBtnRow = div({ style: { display: 'flex', gap: 8, flexWrap: 'wrap' } });
+  tgBtnRow.appendChild(btn({ className: 'btn btn-primary', onClick: async () => {
+    const newCfg = { ...getConfig(), tgToken: tokenInp.value.trim(), tgChatId: chatInp.value.trim() };
     saveConfig(newCfg);
-    showToast('✅ Đã lưu cài đặt');
+    showToast('✅ Đã lưu!');
     if (newCfg.tgToken && newCfg.tgChatId) {
-      await tgNotify('🎉 <b>Paz Project</b> đã kết nối thành công!\n\nBạn sẽ nhận thông báo tại đây khi:\n• Đến hạn thu tiền\n• Deadline dự án sắp đến\n• Dự án hoàn thành');
+      await tgNotify('🎉 <b>Paz Project v2</b> đã kết nối!\n\nCác lệnh hỗ trợ:\n/list — Xem dự án\n/add — Thêm dự án mới\n/status — Cập nhật trạng thái\n/help — Trợ giúp');
       showToast('✅ Đã gửi tin test!');
     }
-  }}, ['Lưu & Test']);
+  }}, ['Lưu & Test']));
 
-  card.appendChild(div({ className: 'field' }, [el('label', { className: 'input-label' }, ['Bot Token']), tokenInp]));
-  card.appendChild(div({ className: 'field' }, [el('label', { className: 'input-label' }, ['Chat ID']), chatInp]));
-  card.appendChild(saveBtn);
-  wrap.appendChild(card);
+  // Polling toggle
+  const pollingBtn = btn({ className: 'btn ' + (S.tgPolling ? 'btn-danger' : 'btn-secondary'), onClick: () => {
+    if (S.tgPolling) {
+      stopPolling();
+      showToast('🔴 Đã tắt bot polling');
+    } else {
+      const c = getConfig();
+      if (!c.tgToken || !c.tgChatId) { showToast('❌ Lưu Token và Chat ID trước!'); return; }
+      startPolling();
+      showToast('🟢 Bot đang lắng nghe...');
+    }
+    render();
+  }}, [S.tgPolling ? '🔴 Tắt Bot' : '🟢 Bật Bot (Polling)']);
+  tgBtnRow.appendChild(pollingBtn);
+  tgCard.appendChild(tgBtnRow);
+
+  tgCard.appendChild(div({ className: 'warn-box', style: { marginTop: 12 } }, [
+    '⚠️ Bot chỉ nhận lệnh khi app đang mở trên ít nhất 1 thiết bị. Đây là giới hạn của app HTML — không cần server.',
+  ]));
+
+  // Command log
+  const logWrap = div({ style: { marginTop: 12 } });
+  logWrap.appendChild(div({ style: { fontSize: 11, fontWeight: 600, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 6 } }, ['Nhật ký lệnh Telegram']));
+  const logEl = div({ id: 'tg-cmd-log', className: 'cmd-log' });
+  logEl.innerHTML = S.tgLog.length
+    ? S.tgLog.map(l => `<div class="cmd-log-line ${l.type}">[${l.ts}] ${l.line}</div>`).join('')
+    : '<div class="cmd-log-line info">Chưa có lệnh nào. Bật Bot và gửi /help từ Telegram.</div>';
+  logWrap.appendChild(logEl);
+  tgCard.appendChild(logWrap);
+
+  wrap.appendChild(tgCard);
 }
 
 // ── Modals ─────────────────────────────────────────────────────────────────────
@@ -729,17 +1165,15 @@ function renderModal(app) {
   if (S.modal === 'new_project' || S.modal === 'edit_project') {
     const isEdit = S.modal === 'edit_project';
     const p = isEdit ? getSelectedProject() : null;
-
     modal.appendChild(div({ className: 'modal-header' }, [
       div({ className: 'modal-title display' }, [isEdit ? 'Sửa dự án' : 'Dự án mới']),
       btn({ className: 'modal-close', onClick: () => setState({ modal: null }) }, ['×']),
     ]));
-
-    const nameInp = inp({ className: 'input', placeholder: 'Tên dự án (ví dụ: Logo Café Bình Yên)', value: p?.name || '' });
-    const clientInp = inp({ className: 'input', placeholder: 'Tên khách hàng', value: p?.client || '' });
-    const valueInp = inp({ className: 'input', placeholder: 'Giá trị hợp đồng (số)', type: 'number', value: p?.contractValue || '' });
-    const deadlineInp = inp({ className: 'input', type: 'date', value: p?.deadline || '' });
-    const notesInp = txt({ className: 'input', placeholder: 'Ghi chú...', style: { height: 80, resize: 'vertical' } });
+    const nameInp    = inp({ className: 'input', placeholder: 'Tên dự án (ví dụ: Logo Café Bình Yên)', value: p?.name || '' });
+    const clientInp  = inp({ className: 'input', placeholder: 'Tên khách hàng', value: p?.client || '' });
+    const valueInp   = inp({ className: 'input', placeholder: 'Giá trị hợp đồng (số)', type: 'number', value: p?.contractValue || '' });
+    const deadlineInp= inp({ className: 'input', type: 'date', value: p?.deadline || '' });
+    const notesInp   = txt({ className: 'input', placeholder: 'Ghi chú...', style: { height: 80, resize: 'vertical' } });
     if (p?.notes) notesInp.value = p.notes;
 
     modal.appendChild(div({ className: 'field' }, [el('label', { className: 'input-label' }, ['Tên dự án *']), nameInp]));
@@ -749,10 +1183,9 @@ function renderModal(app) {
       div({ className: 'field' }, [el('label', { className: 'input-label' }, ['Deadline']), deadlineInp]),
     ]));
     modal.appendChild(div({ className: 'field' }, [el('label', { className: 'input-label' }, ['Ghi chú']), notesInp]));
-
     modal.appendChild(div({ style: { display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 } }, [
       btn({ className: 'btn btn-secondary', onClick: () => setState({ modal: null }) }, ['Huỷ']),
-      btn({ className: 'btn btn-primary', onClick: () => {
+      btn({ className: 'btn btn-primary', onClick: async () => {
         const name = nameInp.value.trim();
         if (!name) { showToast('❌ Nhập tên dự án!'); return; }
         const projects = getProjects();
@@ -760,7 +1193,6 @@ function renderModal(app) {
         if (isEdit) {
           const idx = projects.findIndex(x => x.id === p.id);
           projects[idx] = { ...projects[idx], name, client: clientInp.value.trim(), contractValue, deadline: deadlineInp.value || null, notes: notesInp.value.trim() || null };
-          // Recalculate payments if contract value changed
           if (contractValue && (!projects[idx].payments || !projects[idx].payments.length)) {
             projects[idx].payments = calcPayments(contractValue);
           }
@@ -770,11 +1202,11 @@ function renderModal(app) {
             deadline: deadlineInp.value || null, notes: notesInp.value.trim() || null,
             status: 'new', createdAt: new Date().toISOString(),
             rounds: [
-              { label: 'Brief', status: 'pending', date: null, note: '', feedback: '' },
+              { label: 'Brief',   status: 'pending', date: null, note: '', feedback: '' },
               { label: 'Concept', status: 'pending', date: null, note: '', feedback: '' },
-              { label: 'R1', status: 'pending', date: null, note: '', feedback: '' },
-              { label: 'R2', status: 'pending', date: null, note: '', feedback: '' },
-              { label: 'Final', status: 'pending', date: null, note: '', feedback: '' },
+              { label: 'R1',      status: 'pending', date: null, note: '', feedback: '' },
+              { label: 'R2',      status: 'pending', date: null, note: '', feedback: '' },
+              { label: 'Final',   status: 'pending', date: null, note: '', feedback: '' },
             ],
             payments: contractValue ? calcPayments(contractValue) : [],
             docs: {}, logs: [],
@@ -782,7 +1214,7 @@ function renderModal(app) {
           projects.push(newP);
           tgNotify(`📁 <b>Paz Project</b> — Dự án mới!\n\n📁 <b>${name}</b>\n👤 ${clientInp.value.trim() || 'Chưa rõ'}${contractValue ? '\n💰 ' + fmtMoney(contractValue) : ''}`);
         }
-        saveProjects(projects);
+        await saveAndSync(projects);
         setState({ modal: null, ...(isEdit ? {} : { view: 'detail', selectedId: projects[projects.length - 1].id, tab: 'overview' }) });
         showToast(isEdit ? '✅ Đã cập nhật' : '✅ Đã tạo dự án!');
       }}, [isEdit ? 'Lưu' : 'Tạo dự án']),
@@ -795,46 +1227,40 @@ function renderModal(app) {
       div({ className: 'modal-title display' }, ['🎨 Quản lý Rounds']),
       btn({ className: 'modal-close', onClick: () => setState({ modal: null }) }, ['×']),
     ]));
-
     let rounds = JSON.parse(JSON.stringify(p.rounds || []));
-
     const roundsList = div({});
     const renderRoundsList = () => {
       roundsList.innerHTML = '';
       rounds.forEach((r, i) => {
         const row = div({ style: { background: 'var(--surface2)', borderRadius: 'var(--r8)', padding: '10px 12px', marginBottom: 8 } });
         const top = div({ style: { display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 } });
-
         const labelInp = inp({ className: 'input', value: r.label, style: { flex: 1, fontSize: 13 }, onInput: e => { rounds[i].label = e.target.value; } });
         const statusSel = el('select', { className: 'input', style: { width: 130, fontSize: 12 }, onChange: e => { rounds[i].status = e.target.value; } }, [
-          el('option', { value: 'pending', ...(r.status === 'pending' ? { selected: '' } : {}) }, ['Chưa làm']),
+          el('option', { value: 'pending',    ...(r.status === 'pending'    ? { selected: '' } : {}) }, ['Chưa làm']),
           el('option', { value: 'inprogress', ...(r.status === 'inprogress' ? { selected: '' } : {}) }, ['Đang làm']),
-          el('option', { value: 'review', ...(r.status === 'review' ? { selected: '' } : {}) }, ['Chờ duyệt']),
-          el('option', { value: 'done', ...(r.status === 'done' ? { selected: '' } : {}) }, ['Xong']),
+          el('option', { value: 'review',     ...(r.status === 'review'     ? { selected: '' } : {}) }, ['Chờ duyệt']),
+          el('option', { value: 'done',       ...(r.status === 'done'       ? { selected: '' } : {}) }, ['Xong']),
         ]);
         const delBtn = btn({ className: 'btn btn-ghost btn-sm', style: { color: 'var(--red)' }, onClick: () => { rounds.splice(i, 1); renderRoundsList(); } }, ['🗑']);
         top.appendChild(labelInp); top.appendChild(statusSel); top.appendChild(delBtn);
         row.appendChild(top);
-
         const dateInp = inp({ className: 'input', type: 'date', value: r.date || '', style: { marginBottom: 6, fontSize: 12 }, onChange: e => { rounds[i].date = e.target.value; } });
         const noteInp = inp({ className: 'input', placeholder: 'Ghi chú...', value: r.note || '', style: { marginBottom: 6, fontSize: 12 }, onInput: e => { rounds[i].note = e.target.value; } });
-        const fbInp = inp({ className: 'input', placeholder: 'Phản hồi của khách...', value: r.feedback || '', style: { fontSize: 12 }, onInput: e => { rounds[i].feedback = e.target.value; } });
+        const fbInp   = inp({ className: 'input', placeholder: 'Phản hồi của khách...', value: r.feedback || '', style: { fontSize: 12 }, onInput: e => { rounds[i].feedback = e.target.value; } });
         row.appendChild(dateInp); row.appendChild(noteInp); row.appendChild(fbInp);
         roundsList.appendChild(row);
       });
     };
     renderRoundsList();
-
     modal.appendChild(roundsList);
-    modal.appendChild(btn({ className: 'btn btn-secondary btn-sm', style: { marginBottom: 14 }, onClick: () => { rounds.push({ label: 'R' + (rounds.length), status: 'pending', date: null, note: '', feedback: '' }); renderRoundsList(); } }, ['+ Thêm round']));
-
+    modal.appendChild(btn({ className: 'btn btn-secondary btn-sm', style: { marginBottom: 14 }, onClick: () => { rounds.push({ label: 'R' + rounds.length, status: 'pending', date: null, note: '', feedback: '' }); renderRoundsList(); } }, ['+ Thêm round']));
     modal.appendChild(div({ style: { display: 'flex', gap: 8, justifyContent: 'flex-end' } }, [
       btn({ className: 'btn btn-secondary', onClick: () => setState({ modal: null }) }, ['Huỷ']),
-      btn({ className: 'btn btn-primary', onClick: () => {
+      btn({ className: 'btn btn-primary', onClick: async () => {
         const projects = getProjects();
         const idx = projects.findIndex(x => x.id === p.id);
         projects[idx].rounds = rounds;
-        saveProjects(projects);
+        await saveAndSync(projects);
         setState({ modal: null });
         showToast('✅ Đã cập nhật rounds');
       }}, ['Lưu']),
@@ -847,35 +1273,39 @@ function renderModal(app) {
       div({ className: 'modal-title display' }, ['📝 Thêm nhật ký']),
       btn({ className: 'modal-close', onClick: () => setState({ modal: null }) }, ['×']),
     ]));
-
     const typeInp = el('select', { className: 'input', style: { marginBottom: 10 } }, [
-      el('option', { value: '' }, ['-- Loại --']),
-      el('option', { value: 'Gửi file' }, ['📤 Gửi file']),
-      el('option', { value: 'Họp' }, ['🤝 Họp']),
-      el('option', { value: 'Email' }, ['📧 Email']),
+      el('option', { value: '' },          ['-- Loại --']),
+      el('option', { value: 'Gửi file' },  ['📤 Gửi file']),
+      el('option', { value: 'Họp' },       ['🤝 Họp']),
+      el('option', { value: 'Email' },     ['📧 Email']),
       el('option', { value: 'Zalo/Chat' }, ['💬 Zalo/Chat']),
       el('option', { value: 'Gọi điện' }, ['📞 Gọi điện']),
-      el('option', { value: 'Khác' }, ['📌 Khác']),
+      el('option', { value: 'Khác' },      ['📌 Khác']),
     ]);
     const dateInp = inp({ className: 'input', type: 'date', value: today(), style: { marginBottom: 10 } });
-    const sentInp = txt({ className: 'input', placeholder: 'Đã gửi/làm gì? (ví dụ: Gửi R1 logo 3 phương án)', style: { height: 80, marginBottom: 10, resize: 'vertical' } });
-    const responseInp = txt({ className: 'input', placeholder: 'Khách phản hồi gì? (để trống nếu chưa có)', style: { height: 70, resize: 'vertical' } });
-
+    const sentInp = txt({ className: 'input', placeholder: 'Đã gửi/làm gì?', style: { height: 80, marginBottom: 10, resize: 'vertical' } });
+    const responseInp = txt({ className: 'input', placeholder: 'Khách phản hồi gì? (để trống nếu chưa)', style: { height: 70, resize: 'vertical' } });
     modal.appendChild(div({ className: 'field' }, [el('label', { className: 'input-label' }, ['Loại']), typeInp]));
     modal.appendChild(div({ className: 'field' }, [el('label', { className: 'input-label' }, ['Ngày']), dateInp]));
     modal.appendChild(div({ className: 'field' }, [el('label', { className: 'input-label' }, ['Đã làm/gửi gì *']), sentInp]));
     modal.appendChild(div({ className: 'field' }, [el('label', { className: 'input-label' }, ['Phản hồi của khách']), responseInp]));
-
     modal.appendChild(div({ style: { display: 'flex', gap: 8, justifyContent: 'flex-end' } }, [
       btn({ className: 'btn btn-secondary', onClick: () => setState({ modal: null }) }, ['Huỷ']),
-      btn({ className: 'btn btn-primary', onClick: () => {
+      btn({ className: 'btn btn-primary', onClick: async () => {
         const sent = sentInp.value.trim();
         if (!sent) { showToast('❌ Nhập nội dung!'); return; }
         const projects = getProjects();
         const idx = projects.findIndex(x => x.id === p.id);
         if (!projects[idx].logs) projects[idx].logs = [];
-        projects[idx].logs.push({ date: dateInp.value, type: typeInp.value, sent, response: responseInp.value.trim() });
-        saveProjects(projects);
+        const logEntry = { date: dateInp.value, type: typeInp.value, sent, response: responseInp.value.trim() };
+        projects[idx].logs.push(logEntry);
+        await saveAndSync(projects);
+        // Notify Telegram
+        const typeIcon = { 'Gửi file': '📤', 'Họp': '🤝', 'Email': '📧', 'Zalo/Chat': '💬', 'Gọi điện': '📞', 'Khác': '📌' };
+        const icon = typeIcon[logEntry.type] || '📝';
+        let tgMsg = `${icon} <b>Paz Project</b> — Nhật ký mới\n\n📁 <b>${p.name}</b>\n👤 ${p.client || '—'}\n📅 ${fmtDate(logEntry.date)}${logEntry.type ? ' · ' + logEntry.type : ''}\n\n✏️ ${logEntry.sent}`;
+        if (logEntry.response) tgMsg += `\n\n💬 <i>Khách: ${logEntry.response}</i>`;
+        tgNotify(tgMsg);
         setState({ modal: null, tab: 'log' });
         showToast('✅ Đã thêm nhật ký');
       }}, ['Thêm']),
@@ -893,12 +1323,12 @@ function renderModal(app) {
     modal.appendChild(div({ className: 'field', style: { marginBottom: 14 } }, [noteInp]));
     modal.appendChild(div({ style: { display: 'flex', gap: 8, justifyContent: 'flex-end' } }, [
       btn({ className: 'btn btn-secondary', onClick: () => setState({ modal: null, modalData: null }) }, ['Huỷ']),
-      btn({ className: 'btn btn-primary', onClick: () => {
+      btn({ className: 'btn btn-primary', onClick: async () => {
         const projects = getProjects();
-        const pidx = projects.findIndex(x => x.id === d.projectId);
-        if (!projects[pidx].docs) projects[pidx].docs = {};
-        projects[pidx].docs[d.docId] = { ...projects[pidx].docs[d.docId], note: noteInp.value.trim() };
-        saveProjects(projects);
+        const pidxFix = projects.findIndex(x => x.id === d.projectId);
+        if (!projects[pidxFix].docs) projects[pidxFix].docs = {};
+        projects[pidxFix].docs[d.docId] = { ...projects[pidxFix].docs[d.docId], note: noteInp.value.trim() };
+        await saveAndSync(projects);
         setState({ modal: null, modalData: null });
         showToast('✅ Đã lưu ghi chú');
       }}, ['Lưu']),
@@ -912,33 +1342,30 @@ function renderModal(app) {
       div({ className: 'modal-title display' }, ['💰 Đợt thanh toán']),
       btn({ className: 'modal-close', onClick: () => setState({ modal: null }) }, ['×']),
     ]));
-
     const payList = div({});
     const renderPayList = () => {
       payList.innerHTML = '';
       payments.forEach((pay, i) => {
-        const row = div({ style: { display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 8, marginBottom: 8, alignItems: 'center' } });
-        const labelInp = inp({ className: 'input', value: pay.label, style: { fontSize: 12 }, onInput: e => { payments[i].label = e.target.value; } });
-        const amtInp = inp({ className: 'input', type: 'number', value: pay.amount, style: { width: 120, fontSize: 12 }, onInput: e => { payments[i].amount = Number(e.target.value); } });
-        const dateInp = inp({ className: 'input', type: 'date', value: pay.dueDate || '', style: { fontSize: 12 }, onChange: e => { payments[i].dueDate = e.target.value; } });
-        const delBtn = btn({ className: 'btn btn-ghost btn-sm', style: { color: 'var(--red)' }, onClick: () => { payments.splice(i, 1); renderPayList(); } }, ['🗑']);
+        const row = div({ style: { marginBottom: 8 } });
+        const labelInp = inp({ className: 'input', value: pay.label, style: { fontSize: 12, marginBottom: 4 }, onInput: e => { payments[i].label = e.target.value; } });
+        const amtInp   = inp({ className: 'input', type: 'number', value: pay.amount, style: { width: 130, fontSize: 12 }, onInput: e => { payments[i].amount = Number(e.target.value); } });
+        const dateInp  = inp({ className: 'input', type: 'date', value: pay.dueDate || '', style: { fontSize: 12 }, onChange: e => { payments[i].dueDate = e.target.value; } });
+        const delBtn   = btn({ className: 'btn btn-ghost btn-sm', style: { color: 'var(--red)' }, onClick: () => { payments.splice(i, 1); renderPayList(); } }, ['🗑']);
         row.appendChild(labelInp);
-        const subgrid = div({ style: { display: 'flex', gap: 6 } });
-        subgrid.appendChild(amtInp); subgrid.appendChild(dateInp); subgrid.appendChild(delBtn);
-        payList.appendChild(div({ style: { marginBottom: 8 } }, [labelInp, div({ style: { display: 'flex', gap: 6, marginTop: 4 } }, [amtInp, dateInp, delBtn])]));
+        row.appendChild(div({ style: { display: 'flex', gap: 6 } }, [amtInp, dateInp, delBtn]));
+        payList.appendChild(row);
       });
     };
     renderPayList();
     modal.appendChild(payList);
     modal.appendChild(btn({ className: 'btn btn-secondary btn-sm', style: { marginBottom: 14 }, onClick: () => { payments.push({ label: 'Đợt ' + (payments.length + 1), amount: 0, paid: false, paidAt: null, dueDate: null }); renderPayList(); } }, ['+ Thêm đợt']));
-
     modal.appendChild(div({ style: { display: 'flex', gap: 8, justifyContent: 'flex-end' } }, [
       btn({ className: 'btn btn-secondary', onClick: () => setState({ modal: null }) }, ['Huỷ']),
-      btn({ className: 'btn btn-primary', onClick: () => {
+      btn({ className: 'btn btn-primary', onClick: async () => {
         const projects = getProjects();
         const idx = projects.findIndex(x => x.id === p.id);
         projects[idx].payments = payments;
-        saveProjects(projects);
+        await saveAndSync(projects);
         setState({ modal: null });
         showToast('✅ Đã cập nhật');
       }}, ['Lưu']),
@@ -950,11 +1377,16 @@ function renderModal(app) {
 }
 
 // ── Init ───────────────────────────────────────────────────────────────────────
-function init() {
+async function init() {
   render();
-  // Check deadlines every hour
+  await initSync();
   setInterval(checkDeadlines, 3600000);
   checkDeadlines();
+  // Auto-start polling if already configured
+  const cfg = getConfig();
+  if (cfg.tgToken && cfg.tgChatId) {
+    startPolling();
+  }
 }
 
 init();
