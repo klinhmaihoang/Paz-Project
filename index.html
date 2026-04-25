@@ -85,11 +85,11 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text1)
 .tab.active { background: var(--surface); color: var(--text1); font-weight: 600; box-shadow: var(--s1); }
 .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
 .section-title { font-family: var(--font-display); font-size: 15px; font-weight: 600; color: var(--text1); }
-.timeline { position: relative; padding-left: 20px; }
-.timeline::before { content: ''; position: absolute; left: 6px; top: 0; bottom: 0; width: 1.5px; background: var(--border); }
-.timeline-item { position: relative; margin-bottom: 14px; }
-.timeline-dot { position: absolute; left: -17px; top: 4px; width: 10px; height: 10px; border-radius: 50%; background: var(--accent); border: 2px solid var(--surface); }
-.timeline-dot.empty { background: var(--border); }
+.timeline { position: relative; padding-left: 28px; overflow: visible; }
+.timeline::before { content: ''; position: absolute; left: 8px; top: 0; bottom: 0; width: 2px; background: var(--border); }
+.timeline-item { position: relative; margin-bottom: 14px; overflow: visible; }
+.timeline-dot { position: absolute; left: -20px; top: 4px; width: 10px; height: 10px; border-radius: 50%; background: var(--accent); border: 2px solid var(--surface); box-shadow: 0 0 0 2px var(--border); }
+.timeline-dot.empty { background: var(--border); box-shadow: none; }
 .payment-row { display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: var(--r8); border: 1px solid var(--border); margin-bottom: 8px; }
 .doc-row { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: var(--r8); border: 1px solid var(--border); margin-bottom: 6px; }
 .doc-check { width: 18px; height: 18px; border-radius: 4px; border: 2px solid var(--border); cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: all .1s; }
@@ -841,7 +841,7 @@ function renderDetail(wrap) {
 
 // ── Overview Tab ───────────────────────────────────────────────────────────────
 function renderOverviewTab(wrap, p) {
-  const roundsCard = div({ style: { background: 'var(--surface)', borderRadius: 'var(--r12)', border: '1px solid var(--border)', padding: 16, marginBottom: 12 } });
+  const roundsCard = div({ style: { background: 'var(--surface)', borderRadius: 'var(--r12)', border: '1px solid var(--border)', padding: '16px 16px 16px 20px', marginBottom: 12, overflow: 'visible' } });
   const rHeader = div({ className: 'section-header' });
   rHeader.appendChild(div({ className: 'section-title' }, ['🎨 Rounds thiết kế']));
   rHeader.appendChild(btn({ className: 'btn btn-ghost btn-sm', onClick: () => setState({ modal: 'edit_rounds' }) }, ['Quản lý']));
@@ -969,7 +969,7 @@ function renderDocsTab(wrap, p) {
 
 // ── Log Tab ────────────────────────────────────────────────────────────────────
 function renderLogTab(wrap, p) {
-  const logCard = div({ style: { background: 'var(--surface)', borderRadius: 'var(--r12)', border: '1px solid var(--border)', padding: 16 } });
+  const logCard = div({ style: { background: 'var(--surface)', borderRadius: 'var(--r12)', border: '1px solid var(--border)', padding: '16px 16px 16px 20px', overflow: 'visible' } });
   const logHeader = div({ className: 'section-header' });
   logHeader.appendChild(div({ className: 'section-title' }, ['Nhật ký liên lạc']));
   logHeader.appendChild(btn({ className: 'btn btn-primary btn-sm', onClick: () => setState({ modal: 'add_log' }) }, ['+ Thêm']));
