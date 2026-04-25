@@ -1,0 +1,963 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+<title>Paz Project</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<style>
+:root {
+  --bg: #F7F5F2;
+  --surface: #FFFFFF;
+  --surface2: #F0EDE8;
+  --border: #E8E3DC;
+  --text1: #1A1714;
+  --text2: #5C5550;
+  --text3: #9E9890;
+  --accent: #C4704A;
+  --accent2: #8B5E3C;
+  --accent-bg: #FDF2EC;
+  --green: #4A7C59;
+  --green-bg: #EDF4EF;
+  --red: #C0392B;
+  --red-bg: #FDEEEC;
+  --yellow: #B8860B;
+  --yellow-bg: #FEFAE8;
+  --blue: #2E6DA4;
+  --blue-bg: #EBF3FB;
+  --r8: 8px;
+  --r12: 12px;
+  --r16: 16px;
+  --s1: 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+  --s2: 0 4px 16px rgba(0,0,0,.08);
+  --font-display: 'Playfair Display', Georgia, serif;
+  --font-body: 'DM Sans', system-ui, sans-serif;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: var(--font-body); background: var(--bg); color: var(--text1); min-height: 100vh; }
+
+/* Typography */
+.display { font-family: var(--font-display); }
+
+/* Layout */
+.app { display: flex; flex-direction: column; min-height: 100vh; }
+.header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 20px; height: 56px; display: flex; align-items: center; gap: 12px; position: sticky; top: 0; z-index: 100; box-shadow: var(--s1); }
+.header-logo { font-family: var(--font-display); font-size: 18px; font-weight: 700; color: var(--accent); letter-spacing: -.02em; flex: 1; }
+.header-logo span { color: var(--text3); font-weight: 400; font-size: 13px; font-family: var(--font-body); margin-left: 8px; }
+.content { flex: 1; padding: 20px; max-width: 960px; margin: 0 auto; width: 100%; }
+
+/* Buttons */
+.btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: var(--r8); border: none; font-family: var(--font-body); font-size: 13px; font-weight: 500; cursor: pointer; transition: all .15s; }
+.btn-primary { background: var(--accent); color: white; }
+.btn-primary:hover { background: var(--accent2); }
+.btn-secondary { background: var(--surface); color: var(--text2); border: 1px solid var(--border); }
+.btn-secondary:hover { background: var(--surface2); }
+.btn-ghost { background: transparent; color: var(--text2); padding: 6px 10px; }
+.btn-ghost:hover { background: var(--surface2); }
+.btn-danger { background: var(--red-bg); color: var(--red); border: 1px solid #fca5a5; }
+.btn-sm { padding: 5px 10px; font-size: 12px; }
+
+/* Input */
+.input { width: 100%; padding: 9px 12px; border: 1.5px solid var(--border); border-radius: var(--r8); font-family: var(--font-body); font-size: 13px; color: var(--text1); background: var(--surface); outline: none; transition: border-color .15s; }
+.input:focus { border-color: var(--accent); }
+.input-label { font-size: 11px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 5px; display: block; }
+.field { margin-bottom: 14px; }
+
+/* Modal */
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 200; display: flex; align-items: center; justify-content: center; padding: 16px; }
+.modal { background: var(--surface); border-radius: var(--r16); padding: 24px; width: 100%; max-width: 560px; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,.15); }
+.modal-header { display: flex; align-items: center; margin-bottom: 20px; gap: 8px; }
+.modal-title { font-family: var(--font-display); font-size: 18px; font-weight: 600; flex: 1; color: var(--text1); }
+.modal-close { background: none; border: none; font-size: 22px; cursor: pointer; color: var(--text3); line-height: 1; padding: 4px; border-radius: 4px; }
+.modal-close:hover { color: var(--text1); background: var(--surface2); }
+
+/* Cards */
+.card { background: var(--surface); border-radius: var(--r12); border: 1px solid var(--border); box-shadow: var(--s1); padding: 16px; margin-bottom: 10px; cursor: pointer; transition: box-shadow .15s, transform .1s; }
+.card:hover { box-shadow: var(--s2); transform: translateY(-1px); }
+
+/* Badge */
+.badge { display: inline-flex; align-items: center; padding: 3px 8px; border-radius: 100px; font-size: 11px; font-weight: 600; }
+
+/* Status colors */
+.s-new { background: var(--blue-bg); color: var(--blue); }
+.s-inprogress { background: var(--yellow-bg); color: var(--yellow); }
+.s-review { background: #F0E8F8; color: #7B3FA0; }
+.s-done { background: var(--green-bg); color: var(--green); }
+.s-cancelled { background: var(--surface2); color: var(--text3); }
+
+/* Progress bar */
+.progress-wrap { height: 6px; background: var(--surface2); border-radius: 3px; overflow: hidden; }
+.progress-bar { height: 100%; border-radius: 3px; background: var(--accent); transition: width .4s; }
+
+/* Toast */
+.toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--text1); color: white; padding: 10px 18px; border-radius: 100px; font-size: 13px; font-weight: 500; z-index: 999; box-shadow: var(--s2); opacity: 0; transition: opacity .2s; pointer-events: none; }
+.toast.show { opacity: 1; }
+
+/* Tabs */
+.tabs { display: flex; gap: 4px; background: var(--surface2); padding: 4px; border-radius: var(--r8); margin-bottom: 20px; }
+.tab { flex: 1; padding: 7px; border-radius: 6px; border: none; font-family: var(--font-body); font-size: 12px; font-weight: 500; cursor: pointer; background: transparent; color: var(--text3); transition: all .15s; text-align: center; }
+.tab.active { background: var(--surface); color: var(--text1); font-weight: 600; box-shadow: var(--s1); }
+
+/* Section header */
+.section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.section-title { font-family: var(--font-display); font-size: 15px; font-weight: 600; color: var(--text1); }
+
+/* Timeline */
+.timeline { position: relative; padding-left: 20px; }
+.timeline::before { content: ''; position: absolute; left: 6px; top: 0; bottom: 0; width: 1.5px; background: var(--border); }
+.timeline-item { position: relative; margin-bottom: 14px; }
+.timeline-dot { position: absolute; left: -17px; top: 4px; width: 10px; height: 10px; border-radius: 50%; background: var(--accent); border: 2px solid var(--surface); }
+.timeline-dot.empty { background: var(--border); }
+
+/* Payment row */
+.payment-row { display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: var(--r8); border: 1px solid var(--border); margin-bottom: 8px; }
+
+/* Document row */
+.doc-row { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: var(--r8); border: 1px solid var(--border); margin-bottom: 6px; }
+.doc-check { width: 18px; height: 18px; border-radius: 4px; border: 2px solid var(--border); cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: all .1s; }
+.doc-check.checked { background: var(--green); border-color: var(--green); }
+
+/* Spinner */
+@keyframes spin { to { transform: rotate(360deg); } }
+.spinner { width: 32px; height: 32px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; }
+
+/* Empty state */
+.empty { text-align: center; padding: 60px 20px; color: var(--text3); }
+.empty-icon { font-size: 40px; margin-bottom: 12px; }
+.empty-text { font-size: 14px; margin-bottom: 16px; }
+
+/* Divider */
+.divider { height: 1px; background: var(--border); margin: 16px 0; }
+
+/* Grid */
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 600px) { .grid-2 { grid-template-columns: 1fr; } }
+
+/* Stats */
+.stat-card { background: var(--surface); border-radius: var(--r12); border: 1px solid var(--border); padding: 14px 16px; }
+.stat-value { font-family: var(--font-display); font-size: 26px; font-weight: 700; color: var(--accent); }
+.stat-label { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: .06em; margin-top: 2px; }
+
+/* Select */
+select.input { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%239E9890' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 32px; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+// ── Constants ──────────────────────────────────────────────────────────────────
+const VERSION = 'Paz Project v1.0';
+const LS_KEY = 'paz_projects';
+const LS_CFG = 'paz_config';
+
+const PROJECT_STATUS = {
+  new:        { label: 'Mới', icon: '🌱', cls: 's-new' },
+  inprogress: { label: 'Đang làm', icon: '⚡', cls: 's-inprogress' },
+  review:     { label: 'Chờ duyệt', icon: '👁', cls: 's-review' },
+  done:       { label: 'Hoàn thành', icon: '✅', cls: 's-done' },
+  cancelled:  { label: 'Huỷ', icon: '❌', cls: 's-cancelled' },
+};
+
+const ROUND_LABELS = ['Brief', 'Concept', 'R1', 'R2', 'R3', 'R4', 'R5', 'Final'];
+
+const DOCS = [
+  { id: 'quotation', label: 'Báo giá', icon: '📋' },
+  { id: 'contract',  label: 'Hợp đồng', icon: '📝' },
+  { id: 'appendix',  label: 'PLHD', icon: '📎' },
+  { id: 'bbnt',      label: 'BBNT', icon: '✍️' },
+  { id: 'dntt',      label: 'DNTT', icon: '💸' },
+  { id: 'invoice',   label: 'Hoá đơn', icon: '🧾' },
+];
+
+// ── State ──────────────────────────────────────────────────────────────────────
+let S = {
+  view: 'list',        // 'list' | 'detail' | 'settings'
+  selectedId: null,
+  tab: 'overview',     // 'overview' | 'payments' | 'docs' | 'log'
+  modal: null,
+  filterStatus: 'all',
+  search: '',
+};
+
+// ── Data helpers ───────────────────────────────────────────────────────────────
+function getProjects() {
+  try { return JSON.parse(localStorage.getItem(LS_KEY)) || []; }
+  catch { return []; }
+}
+function saveProjects(list) {
+  localStorage.setItem(LS_KEY, JSON.stringify(list));
+}
+function getConfig() {
+  try { return JSON.parse(localStorage.getItem(LS_CFG)) || {}; }
+  catch { return {}; }
+}
+function saveConfig(cfg) {
+  localStorage.setItem(LS_CFG, JSON.stringify(cfg));
+}
+function genId() { return 'p_' + Date.now(); }
+function fmtMoney(n) { return Number(n || 0).toLocaleString('vi-VN') + 'đ'; }
+function fmtDate(s) {
+  if (!s) return '';
+  const d = new Date(s);
+  return d.toLocaleDateString('vi-VN');
+}
+function today() { return new Date().toISOString().slice(0, 10); }
+
+function calcPayments(total) {
+  const t = Number(total) || 0;
+  if (t >= 20000000) {
+    return [
+      { pct: 50, label: 'Đợt 1 — 50% khi ký HĐ', amount: Math.round(t * 0.5), paid: false, paidAt: null },
+      { pct: 30, label: 'Đợt 2 — 30% khi bàn giao', amount: Math.round(t * 0.3), paid: false, paidAt: null },
+      { pct: 20, label: 'Đợt 3 — 20% khi nghiệm thu', amount: Math.round(t * 0.2), paid: false, paidAt: null },
+    ];
+  } else {
+    return [
+      { pct: 50, label: 'Đợt 1 — 50% khi ký HĐ', amount: Math.round(t * 0.5), paid: false, paidAt: null },
+      { pct: 50, label: 'Đợt 2 — 50% khi bàn giao', amount: Math.round(t * 0.5), paid: false, paidAt: null },
+    ];
+  }
+}
+
+function getProjectProgress(p) {
+  const rounds = p.rounds || [];
+  const done = rounds.filter(r => r.status === 'done').length;
+  return rounds.length ? Math.round(done / rounds.length * 100) : 0;
+}
+
+function getSelectedProject() {
+  return getProjects().find(p => p.id === S.selectedId) || null;
+}
+
+// ── Toast ──────────────────────────────────────────────────────────────────────
+let toastTimer;
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2500);
+}
+
+// ── DOM helpers ───────────────────────────────────────────────────────────────
+function el(tag, attrs, children) {
+  const e = document.createElement(tag);
+  if (attrs) Object.entries(attrs).forEach(([k, v]) => {
+    if (k === 'className') e.className = v;
+    else if (k === 'style' && typeof v === 'object') Object.assign(e.style, v);
+    else if (k.startsWith('on')) {
+      const ev = k.slice(2).toLowerCase();
+      e.addEventListener(ev, v);
+    }
+    else if (k === 'innerHTML') e.innerHTML = v;
+    else e.setAttribute(k, v);
+  });
+  (children || []).forEach(c => {
+    if (c === null || c === undefined) return;
+    e.appendChild(typeof c === 'string' ? document.createTextNode(c) : c);
+  });
+  return e;
+}
+const div = (a, c) => el('div', a, c);
+const span = (a, c) => el('span', a, c);
+const btn = (a, c) => el('button', a, c);
+const inp = a => el('input', a);
+const txt = a => el('textarea', a);
+
+// ── setState ───────────────────────────────────────────────────────────────────
+function setState(patch) {
+  Object.assign(S, patch);
+  render();
+}
+
+// ── Telegram notify ────────────────────────────────────────────────────────────
+async function tgNotify(msg) {
+  const cfg = getConfig();
+  if (!cfg.tgToken || !cfg.tgChatId) return;
+  try {
+    await fetch(`https://api.telegram.org/bot${cfg.tgToken}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: cfg.tgChatId, text: msg, parse_mode: 'HTML' })
+    });
+  } catch {}
+}
+
+// ── Deadline checker ───────────────────────────────────────────────────────────
+function checkDeadlines() {
+  const projects = getProjects();
+  const now = new Date();
+  projects.forEach(p => {
+    if (p.status === 'done' || p.status === 'cancelled') return;
+    // Check payment due
+    (p.payments || []).forEach((pay, i) => {
+      if (pay.paid || !pay.dueDate) return;
+      const due = new Date(pay.dueDate);
+      const diff = Math.round((due - now) / 86400000);
+      if (diff === 1) {
+        tgNotify(`⏰ <b>Paz Project</b> — Nhắc thu tiền!\n\n📁 <b>${p.name}</b>\n👤 ${p.client}\n💰 ${fmtMoney(pay.amount)} (${pay.label})\n📅 Đến hạn: <b>ngày mai</b>`);
+      }
+    });
+    // Check project deadline
+    if (p.deadline) {
+      const due = new Date(p.deadline);
+      const diff = Math.round((due - now) / 86400000);
+      if (diff === 3) {
+        tgNotify(`🔔 <b>Paz Project</b> — Deadline sắp đến!\n\n📁 <b>${p.name}</b>\n👤 ${p.client}\n📅 Deadline: <b>${fmtDate(p.deadline)}</b> (còn 3 ngày)`);
+      }
+    }
+  });
+}
+
+// ── Render ─────────────────────────────────────────────────────────────────────
+function render() {
+  const app = document.getElementById('app');
+  app.innerHTML = '';
+
+  // Header
+  const hdr = div({ className: 'header' });
+  const logo = div({ className: 'header-logo display' }, [
+    'Paz Project',
+    S.view === 'detail' ? span({ style: { color: 'var(--text3)', fontSize: 12, fontFamily: 'var(--font-body)', marginLeft: 8 } }, [getSelectedProject()?.name || '']) : null,
+  ].filter(Boolean));
+  hdr.appendChild(logo);
+
+  if (S.view === 'detail') {
+    hdr.appendChild(btn({ className: 'btn btn-ghost btn-sm', onClick: () => setState({ view: 'list', selectedId: null }) }, ['← Quay lại']));
+  }
+  hdr.appendChild(btn({ className: 'btn btn-ghost btn-sm', onClick: () => setState({ view: 'settings' }) }, ['⚙']));
+  app.appendChild(hdr);
+
+  const content = div({ className: 'content' });
+  app.appendChild(content);
+
+  if (S.view === 'list') renderList(content);
+  else if (S.view === 'detail') renderDetail(content);
+  else if (S.view === 'settings') renderSettings(content);
+
+  if (S.modal) renderModal(app);
+}
+
+// ── List View ──────────────────────────────────────────────────────────────────
+function renderList(wrap) {
+  const projects = getProjects();
+
+  // Stats
+  const total = projects.length;
+  const active = projects.filter(p => p.status === 'inprogress').length;
+  const totalValue = projects.reduce((s, p) => s + (Number(p.contractValue) || 0), 0);
+  const collected = projects.reduce((s, p) => s + (p.payments || []).filter(x => x.paid).reduce((a, x) => a + (Number(x.amount) || 0), 0), 0);
+
+  const statsGrid = div({ style: { display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10, marginBottom: 20 } });
+  [
+    { value: total, label: 'Tổng dự án' },
+    { value: active, label: 'Đang thực hiện' },
+    { value: fmtMoney(totalValue), label: 'Tổng HĐ', small: true },
+    { value: fmtMoney(collected), label: 'Đã thu', small: true },
+  ].forEach(s => {
+    const c = div({ className: 'stat-card' });
+    c.appendChild(div({ className: 'stat-value display', style: s.small ? { fontSize: 16 } : {} }, [String(s.value)]));
+    c.appendChild(div({ className: 'stat-label' }, [s.label]));
+    statsGrid.appendChild(c);
+  });
+  wrap.appendChild(statsGrid);
+
+  // Toolbar
+  const toolbar = div({ style: { display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' } });
+  const searchInp = inp({ className: 'input', placeholder: '🔍 Tìm dự án...', value: S.search, style: { flex: 1, minWidth: 160 }, onInput: e => { S.search = e.target.value; render(); } });
+  toolbar.appendChild(searchInp);
+
+  const statusFilter = el('select', { className: 'input', style: { width: 140 }, onChange: e => setState({ filterStatus: e.target.value }) }, [
+    el('option', { value: 'all' }, ['Tất cả trạng thái']),
+    ...Object.entries(PROJECT_STATUS).map(([k, v]) => el('option', { value: k, ...(S.filterStatus === k ? { selected: '' } : {}) }, [v.icon + ' ' + v.label])),
+  ]);
+  toolbar.appendChild(statusFilter);
+  toolbar.appendChild(btn({ className: 'btn btn-primary', onClick: () => setState({ modal: 'new_project' }) }, ['+ Dự án mới']));
+  wrap.appendChild(toolbar);
+
+  // Filter
+  let visible = projects;
+  if (S.filterStatus !== 'all') visible = visible.filter(p => p.status === S.filterStatus);
+  if (S.search) visible = visible.filter(p => p.name.toLowerCase().includes(S.search.toLowerCase()) || (p.client || '').toLowerCase().includes(S.search.toLowerCase()));
+  visible = visible.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+  if (!visible.length) {
+    const empty = div({ className: 'empty' });
+    empty.appendChild(div({ className: 'empty-icon' }, ['📁']));
+    empty.appendChild(div({ className: 'empty-text' }, [projects.length ? 'Không có dự án nào phù hợp' : 'Chưa có dự án nào']));
+    if (!projects.length) empty.appendChild(btn({ className: 'btn btn-primary', onClick: () => setState({ modal: 'new_project' }) }, ['+ Tạo dự án đầu tiên']));
+    wrap.appendChild(empty);
+    return;
+  }
+
+  visible.forEach(p => {
+    const st = PROJECT_STATUS[p.status] || PROJECT_STATUS.new;
+    const progress = getProjectProgress(p);
+    const totalPaid = (p.payments || []).filter(x => x.paid).reduce((s, x) => s + (Number(x.amount) || 0), 0);
+    const totalAmt = Number(p.contractValue) || 0;
+    const collected = totalAmt ? Math.round(totalPaid / totalAmt * 100) : 0;
+    const currentRound = (p.rounds || []).find(r => r.status === 'inprogress') || (p.rounds || []).slice().reverse().find(r => r.status === 'done');
+
+    const card = div({ className: 'card', onClick: () => setState({ view: 'detail', selectedId: p.id, tab: 'overview' }) });
+
+    // Top row
+    const top = div({ style: { display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 10 } });
+    const titleWrap = div({ style: { flex: 1, minWidth: 0 } });
+    titleWrap.appendChild(div({ style: { fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 600, color: 'var(--text1)', marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, [p.name]));
+    titleWrap.appendChild(div({ style: { fontSize: 12, color: 'var(--text3)' } }, ['👤 ' + (p.client || 'Chưa có khách')]));
+    top.appendChild(titleWrap);
+    top.appendChild(span({ className: 'badge ' + st.cls }, [st.icon + ' ' + st.label]));
+    card.appendChild(top);
+
+    // Progress
+    const progWrap = div({ style: { marginBottom: 10 } });
+    progWrap.appendChild(div({ style: { display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text3)', marginBottom: 4 } }, [
+      span({}, [currentRound ? '📍 ' + currentRound.label : '📍 Chưa bắt đầu']),
+      span({}, [progress + '% hoàn thành']),
+    ]));
+    const pb = div({ className: 'progress-wrap' });
+    pb.appendChild(div({ className: 'progress-bar', style: { width: progress + '%' } }));
+    progWrap.appendChild(pb);
+    card.appendChild(progWrap);
+
+    // Bottom
+    const bot = div({ style: { display: 'flex', gap: 12, flexWrap: 'wrap' } });
+    if (totalAmt) bot.appendChild(span({ style: { fontSize: 12, color: 'var(--text2)' } }, ['💰 ' + fmtMoney(totalAmt)]));
+    bot.appendChild(span({ style: { fontSize: 12, color: collected >= 100 ? 'var(--green)' : 'var(--text3)' } }, ['📥 Thu ' + collected + '%']));
+    if (p.deadline) {
+      const daysLeft = Math.round((new Date(p.deadline) - new Date()) / 86400000);
+      const color = daysLeft < 0 ? 'var(--red)' : daysLeft <= 3 ? 'var(--yellow)' : 'var(--text3)';
+      bot.appendChild(span({ style: { fontSize: 12, color } }, ['📅 ' + (daysLeft < 0 ? 'Quá hạn ' + Math.abs(daysLeft) + 'n' : 'Còn ' + daysLeft + ' ngày')]));
+    }
+    card.appendChild(bot);
+    wrap.appendChild(card);
+  });
+}
+
+// ── Detail View ────────────────────────────────────────────────────────────────
+function renderDetail(wrap) {
+  const p = getSelectedProject();
+  if (!p) { setState({ view: 'list' }); return; }
+  const st = PROJECT_STATUS[p.status] || PROJECT_STATUS.new;
+
+  // Project header card
+  const hCard = div({ style: { background: 'var(--surface)', borderRadius: 'var(--r16)', border: '1px solid var(--border)', padding: '20px', marginBottom: 16, boxShadow: 'var(--s1)' } });
+
+  const hTop = div({ style: { display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 14 } });
+  const hInfo = div({ style: { flex: 1 } });
+  hInfo.appendChild(div({ style: { fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 700, color: 'var(--text1)', marginBottom: 4 } }, [p.name]));
+  const meta = div({ style: { display: 'flex', gap: 12, flexWrap: 'wrap', fontSize: 13, color: 'var(--text2)' } });
+  meta.appendChild(span({}, ['👤 ' + (p.client || '—')]));
+  if (p.contractValue) meta.appendChild(span({}, ['💰 ' + fmtMoney(p.contractValue)]));
+  if (p.deadline) meta.appendChild(span({}, ['📅 ' + fmtDate(p.deadline)]));
+  hInfo.appendChild(meta);
+  hTop.appendChild(hInfo);
+
+  const stSelect = el('select', { className: 'input', style: { width: 'auto', fontSize: 12 }, onChange: async e => {
+    const projects = getProjects();
+    const idx = projects.findIndex(x => x.id === p.id);
+    projects[idx].status = e.target.value;
+    if (e.target.value === 'done') {
+      projects[idx].completedAt = new Date().toISOString();
+      await tgNotify(`✅ <b>Paz Project</b> — Dự án hoàn thành!\n\n📁 <b>${p.name}</b>\n👤 ${p.client}\n💰 ${fmtMoney(p.contractValue)}`);
+    }
+    saveProjects(projects);
+    render();
+  }}, Object.entries(PROJECT_STATUS).map(([k, v]) => el('option', { value: k, ...(p.status === k ? { selected: '' } : {}) }, [v.icon + ' ' + v.label])));
+  hTop.appendChild(stSelect);
+  hCard.appendChild(hTop);
+
+  // Progress bar
+  const progress = getProjectProgress(p);
+  const pb = div({ className: 'progress-wrap' });
+  pb.appendChild(div({ className: 'progress-bar', style: { width: progress + '%' } }));
+  hCard.appendChild(div({ style: { marginBottom: 6, fontSize: 12, color: 'var(--text3)' } }, ['Tiến độ tổng: ' + progress + '%']));
+  hCard.appendChild(pb);
+
+  // Action buttons
+  const actions = div({ style: { display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' } });
+  actions.appendChild(btn({ className: 'btn btn-secondary btn-sm', onClick: () => setState({ modal: 'edit_project' }) }, ['✏️ Sửa thông tin']));
+  actions.appendChild(btn({ className: 'btn btn-secondary btn-sm', onClick: () => setState({ modal: 'add_log' }) }, ['📝 Thêm nhật ký']));
+  actions.appendChild(btn({ className: 'btn btn-secondary btn-sm', onClick: () => {
+    if (!confirm('Xóa dự án "' + p.name + '"?')) return;
+    saveProjects(getProjects().filter(x => x.id !== p.id));
+    setState({ view: 'list', selectedId: null });
+    showToast('🗑 Đã xóa dự án');
+  }}, ['🗑']));
+  hCard.appendChild(actions);
+  wrap.appendChild(hCard);
+
+  // Tabs
+  const tabs = div({ className: 'tabs' });
+  ['overview', 'payments', 'docs', 'log'].forEach((t, i) => {
+    const labels = ['📋 Tổng quan', '💰 Thanh toán', '📂 Giấy tờ', '📖 Nhật ký'];
+    tabs.appendChild(btn({ className: 'tab' + (S.tab === t ? ' active' : ''), onClick: () => setState({ tab: t }) }, [labels[i]]));
+  });
+  wrap.appendChild(tabs);
+
+  if (S.tab === 'overview') renderOverviewTab(wrap, p);
+  else if (S.tab === 'payments') renderPaymentsTab(wrap, p);
+  else if (S.tab === 'docs') renderDocsTab(wrap, p);
+  else if (S.tab === 'log') renderLogTab(wrap, p);
+}
+
+// ── Overview Tab ───────────────────────────────────────────────────────────────
+function renderOverviewTab(wrap, p) {
+  // Rounds
+  const roundsCard = div({ style: { background: 'var(--surface)', borderRadius: 'var(--r12)', border: '1px solid var(--border)', padding: 16, marginBottom: 12 } });
+  const rHeader = div({ className: 'section-header' });
+  rHeader.appendChild(div({ className: 'section-title' }, ['🎨 Rounds thiết kế']));
+  rHeader.appendChild(btn({ className: 'btn btn-ghost btn-sm', onClick: () => setState({ modal: 'edit_rounds' }) }, ['Quản lý']));
+  roundsCard.appendChild(rHeader);
+
+  if (!(p.rounds || []).length) {
+    roundsCard.appendChild(div({ style: { color: 'var(--text3)', fontSize: 13 } }, ['Chưa có rounds — bấm "Quản lý" để thêm']));
+  } else {
+    const timeline = div({ className: 'timeline' });
+    p.rounds.forEach(r => {
+      const item = div({ className: 'timeline-item' });
+      const dot = div({ className: 'timeline-dot' + (r.status !== 'done' && r.status !== 'inprogress' ? ' empty' : '') });
+      item.appendChild(dot);
+      const content = div({ style: { paddingLeft: 4 } });
+      const rTop = div({ style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 } });
+      rTop.appendChild(div({ style: { fontWeight: 600, fontSize: 13 } }, [r.label]));
+      const rStatusMap = { pending: { l: 'Chưa làm', bg: '#f3f4f6', c: '#6b7280' }, inprogress: { l: 'Đang làm', bg: 'var(--yellow-bg)', c: 'var(--yellow)' }, review: { l: 'Chờ duyệt', bg: '#f0e8f8', c: '#7b3fa0' }, done: { l: 'Xong', bg: 'var(--green-bg)', c: 'var(--green)' } };
+      const rs = rStatusMap[r.status] || rStatusMap.pending;
+      rTop.appendChild(span({ style: { fontSize: 11, background: rs.bg, color: rs.c, padding: '2px 8px', borderRadius: 100, fontWeight: 600 } }, [rs.l]));
+      if (r.date) rTop.appendChild(span({ style: { fontSize: 11, color: 'var(--text3)' } }, [fmtDate(r.date)]));
+      content.appendChild(rTop);
+      if (r.note) content.appendChild(div({ style: { fontSize: 12, color: 'var(--text3)', fontStyle: 'italic' } }, [r.note]));
+      if (r.feedback) content.appendChild(div({ style: { fontSize: 12, color: 'var(--blue)', background: 'var(--blue-bg)', padding: '4px 8px', borderRadius: 4, marginTop: 4 } }, ['💬 ' + r.feedback]));
+      item.appendChild(content);
+      timeline.appendChild(item);
+    });
+    roundsCard.appendChild(timeline);
+  }
+  wrap.appendChild(roundsCard);
+
+  // Notes
+  if (p.notes) {
+    const notesCard = div({ style: { background: 'var(--yellow-bg)', borderRadius: 'var(--r12)', border: '1px solid #fde68a', padding: 14, marginBottom: 12 } });
+    notesCard.appendChild(div({ style: { fontSize: 11, fontWeight: 700, color: 'var(--yellow)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '.04em' } }, ['📌 Ghi chú']));
+    notesCard.appendChild(div({ style: { fontSize: 13, color: 'var(--text1)', whiteSpace: 'pre-wrap' } }, [p.notes]));
+    wrap.appendChild(notesCard);
+  }
+}
+
+// ── Payments Tab ───────────────────────────────────────────────────────────────
+function renderPaymentsTab(wrap, p) {
+  const totalAmt = Number(p.contractValue) || 0;
+  const totalPaid = (p.payments || []).filter(x => x.paid).reduce((s, x) => s + (Number(x.amount) || 0), 0);
+  const remaining = totalAmt - totalPaid;
+
+  // Summary
+  const sumCard = div({ style: { background: 'var(--surface)', borderRadius: 'var(--r12)', border: '1px solid var(--border)', padding: 16, marginBottom: 12 } });
+  const sumGrid = div({ style: { display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10 } });
+  [
+    { label: 'Tổng HĐ', value: fmtMoney(totalAmt), color: 'var(--text1)' },
+    { label: 'Đã thu', value: fmtMoney(totalPaid), color: 'var(--green)' },
+    { label: 'Còn lại', value: fmtMoney(remaining), color: remaining > 0 ? 'var(--accent)' : 'var(--text3)' },
+  ].forEach(s => {
+    const c = div({ style: { textAlign: 'center' } });
+    c.appendChild(div({ style: { fontSize: 15, fontWeight: 700, color: s.color, fontFamily: 'var(--font-display)' } }, [s.value]));
+    c.appendChild(div({ style: { fontSize: 11, color: 'var(--text3)', marginTop: 2 } }, [s.label]));
+    sumGrid.appendChild(c);
+  });
+  sumCard.appendChild(sumGrid);
+  wrap.appendChild(sumCard);
+
+  // Payment list
+  const payCard = div({ style: { background: 'var(--surface)', borderRadius: 'var(--r12)', border: '1px solid var(--border)', padding: 16 } });
+  const payHeader = div({ className: 'section-header' });
+  payHeader.appendChild(div({ className: 'section-title' }, ['Đợt thanh toán']));
+  payHeader.appendChild(btn({ className: 'btn btn-ghost btn-sm', onClick: () => setState({ modal: 'edit_payments' }) }, ['Tuỳ chỉnh']));
+  payCard.appendChild(payHeader);
+
+  (p.payments || []).forEach((pay, i) => {
+    const row = div({ className: 'payment-row' });
+    // Checkbox
+    const cb = div({ style: { width: 20, height: 20, borderRadius: 4, border: '2px solid ' + (pay.paid ? 'var(--green)' : 'var(--border)'), background: pay.paid ? 'var(--green)' : 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }, onClick: () => {
+      const projects = getProjects();
+      const pidx = projects.findIndex(x => x.id === p.id);
+      projects[pidx].payments[i].paid = !pay.paid;
+      projects[pidx].payments[i].paidAt = !pay.paid ? new Date().toISOString() : null;
+      saveProjects(projects);
+      if (!pay.paid) {
+        tgNotify(`💰 <b>Paz Project</b> — Đã thu tiền!\n\n📁 <b>${p.name}</b>\n👤 ${p.client}\n💵 ${fmtMoney(pay.amount)} (${pay.label})`);
+        showToast('✅ Đã ghi nhận thanh toán!');
+      }
+      render();
+    }});
+    if (pay.paid) cb.innerHTML = '<svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 6l3 3 5-5" stroke="white" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    row.appendChild(cb);
+    const info = div({ style: { flex: 1 } });
+    info.appendChild(div({ style: { fontSize: 13, fontWeight: 500, color: pay.paid ? 'var(--text3)' : 'var(--text1)', textDecoration: pay.paid ? 'line-through' : 'none' } }, [pay.label]));
+    if (pay.dueDate) info.appendChild(div({ style: { fontSize: 11, color: 'var(--text3)' } }, ['Hạn: ' + fmtDate(pay.dueDate)]));
+    if (pay.paid && pay.paidAt) info.appendChild(div({ style: { fontSize: 11, color: 'var(--green)' } }, ['✅ Đã thu ' + fmtDate(pay.paidAt)]));
+    row.appendChild(info);
+    row.appendChild(div({ style: { fontWeight: 700, fontSize: 14, color: pay.paid ? 'var(--text3)' : 'var(--accent)', fontFamily: 'var(--font-display)' } }, [fmtMoney(pay.amount)]));
+    payCard.appendChild(row);
+  });
+
+  if (!(p.payments || []).length) {
+    payCard.appendChild(div({ style: { color: 'var(--text3)', fontSize: 13 } }, ['Chưa có đợt thanh toán nào']));
+  }
+  wrap.appendChild(payCard);
+}
+
+// ── Docs Tab ───────────────────────────────────────────────────────────────────
+function renderDocsTab(wrap, p) {
+  const docsCard = div({ style: { background: 'var(--surface)', borderRadius: 'var(--r12)', border: '1px solid var(--border)', padding: 16 } });
+  docsCard.appendChild(div({ className: 'section-title', style: { marginBottom: 14 } }, ['Giấy tờ & Hồ sơ']));
+
+  const docs = p.docs || {};
+  DOCS.forEach(d => {
+    const docData = docs[d.id] || {};
+    const row = div({ className: 'doc-row' });
+
+    // Checkbox
+    const cb = div({ className: 'doc-check' + (docData.done ? ' checked' : ''), onClick: () => {
+      const projects = getProjects();
+      const pidx = projects.findIndex(x => x.id === p.id);
+      if (!projects[pidx].docs) projects[pidx].docs = {};
+      const wasDone = projects[pidx].docs[d.id]?.done;
+      projects[pidx].docs[d.id] = { ...projects[pidx].docs[d.id], done: !wasDone, doneAt: !wasDone ? new Date().toISOString() : null };
+      saveProjects(projects);
+      if (!wasDone) showToast('✅ Đã đánh dấu ' + d.label);
+      render();
+    }});
+    if (docData.done) cb.innerHTML = '<svg width="11" height="11" viewBox="0 0 11 11"><path d="M1.5 5.5l3 3 5-5" stroke="white" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    row.appendChild(cb);
+
+    row.appendChild(span({ style: { fontSize: 16 } }, [d.icon]));
+    const info = div({ style: { flex: 1 } });
+    info.appendChild(div({ style: { fontSize: 13, fontWeight: 500, color: docData.done ? 'var(--text3)' : 'var(--text1)', textDecoration: docData.done ? 'line-through' : 'none' } }, [d.label]));
+    if (docData.done && docData.doneAt) info.appendChild(div({ style: { fontSize: 11, color: 'var(--green)' } }, [fmtDate(docData.doneAt)]));
+    if (docData.note) info.appendChild(div({ style: { fontSize: 11, color: 'var(--text3)' } }, [docData.note]));
+    row.appendChild(info);
+
+    // Note button
+    row.appendChild(btn({ className: 'btn btn-ghost btn-sm', style: { fontSize: 12 }, onClick: e => {
+      e.stopPropagation();
+      setState({ modal: 'doc_note', modalData: { projectId: p.id, docId: d.id, label: d.label, note: docData.note || '' } });
+    }}, ['📝']));
+    docsCard.appendChild(row);
+  });
+  wrap.appendChild(docsCard);
+}
+
+// ── Log Tab ────────────────────────────────────────────────────────────────────
+function renderLogTab(wrap, p) {
+  const logCard = div({ style: { background: 'var(--surface)', borderRadius: 'var(--r12)', border: '1px solid var(--border)', padding: 16 } });
+  const logHeader = div({ className: 'section-header' });
+  logHeader.appendChild(div({ className: 'section-title' }, ['Nhật ký liên lạc']));
+  logHeader.appendChild(btn({ className: 'btn btn-primary btn-sm', onClick: () => setState({ modal: 'add_log' }) }, ['+ Thêm']));
+  logCard.appendChild(logHeader);
+
+  const logs = (p.logs || []).slice().reverse();
+  if (!logs.length) {
+    logCard.appendChild(div({ style: { color: 'var(--text3)', fontSize: 13 } }, ['Chưa có nhật ký nào']));
+  } else {
+    const timeline = div({ className: 'timeline' });
+    logs.forEach((log, i) => {
+      const item = div({ className: 'timeline-item' });
+      item.appendChild(div({ className: 'timeline-dot' }));
+      const content = div({ style: { paddingLeft: 4 } });
+      content.appendChild(div({ style: { fontSize: 11, color: 'var(--text3)', marginBottom: 4 } }, [fmtDate(log.date) + (log.type ? ' · ' + log.type : '')]));
+      content.appendChild(div({ style: { fontSize: 13, color: 'var(--text1)', fontWeight: 500, marginBottom: 4 } }, [log.sent || '']));
+      if (log.response) content.appendChild(div({ style: { fontSize: 12, color: 'var(--blue)', background: 'var(--blue-bg)', padding: '6px 10px', borderRadius: 6 } }, ['💬 Khách: ' + log.response]));
+      const delBtn = btn({ style: { background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 11, marginTop: 4 }, onClick: () => {
+        const projects = getProjects();
+        const pidx = projects.findIndex(x => x.id === p.id);
+        projects[pidx].logs.splice(projects[pidx].logs.length - 1 - i, 1);
+        saveProjects(projects);
+        render();
+      }}, ['🗑 Xoá']);
+      content.appendChild(delBtn);
+      item.appendChild(content);
+      timeline.appendChild(item);
+    });
+    logCard.appendChild(timeline);
+  }
+  wrap.appendChild(logCard);
+}
+
+// ── Settings View ──────────────────────────────────────────────────────────────
+function renderSettings(wrap) {
+  const cfg = getConfig();
+  wrap.appendChild(div({ style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20 } }, [
+    btn({ className: 'btn btn-ghost', onClick: () => setState({ view: 'list' }) }, ['← Quay lại']),
+    div({ style: { fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 600 } }, ['Cài đặt']),
+  ]));
+
+  const card = div({ style: { background: 'var(--surface)', borderRadius: 'var(--r12)', border: '1px solid var(--border)', padding: 20 } });
+  card.appendChild(div({ style: { fontWeight: 600, fontSize: 14, marginBottom: 14, color: 'var(--text1)' } }, ['🤖 Telegram thông báo']));
+  card.appendChild(div({ style: { fontSize: 12, color: 'var(--text3)', marginBottom: 14, lineHeight: 1.6 } }, ['Tạo bot Telegram mới qua @BotFather → lấy token → thêm bot vào nhóm/chat riêng → lấy Chat ID']));
+
+  const tokenInp = inp({ className: 'input', placeholder: 'Bot Token (ví dụ: 123456:ABCdef...)', value: cfg.tgToken || '', style: { marginBottom: 10 } });
+  const chatInp = inp({ className: 'input', placeholder: 'Chat ID (ví dụ: -100123456789)', value: cfg.tgChatId || '', style: { marginBottom: 14 } });
+
+  const saveBtn = btn({ className: 'btn btn-primary', onClick: async () => {
+    const newCfg = { ...cfg, tgToken: tokenInp.value.trim(), tgChatId: chatInp.value.trim() };
+    saveConfig(newCfg);
+    showToast('✅ Đã lưu cài đặt');
+    if (newCfg.tgToken && newCfg.tgChatId) {
+      await tgNotify('🎉 <b>Paz Project</b> đã kết nối thành công!\n\nBạn sẽ nhận thông báo tại đây khi:\n• Đến hạn thu tiền\n• Deadline dự án sắp đến\n• Dự án hoàn thành');
+      showToast('✅ Đã gửi tin test!');
+    }
+  }}, ['Lưu & Test']);
+
+  card.appendChild(div({ className: 'field' }, [el('label', { className: 'input-label' }, ['Bot Token']), tokenInp]));
+  card.appendChild(div({ className: 'field' }, [el('label', { className: 'input-label' }, ['Chat ID']), chatInp]));
+  card.appendChild(saveBtn);
+  wrap.appendChild(card);
+}
+
+// ── Modals ─────────────────────────────────────────────────────────────────────
+function renderModal(app) {
+  const overlay = div({ className: 'modal-overlay', onClick: e => { if (e.target === overlay) setState({ modal: null, modalData: null }); } });
+  const modal = div({ className: 'modal' });
+
+  if (S.modal === 'new_project' || S.modal === 'edit_project') {
+    const isEdit = S.modal === 'edit_project';
+    const p = isEdit ? getSelectedProject() : null;
+
+    modal.appendChild(div({ className: 'modal-header' }, [
+      div({ className: 'modal-title display' }, [isEdit ? 'Sửa dự án' : 'Dự án mới']),
+      btn({ className: 'modal-close', onClick: () => setState({ modal: null }) }, ['×']),
+    ]));
+
+    const nameInp = inp({ className: 'input', placeholder: 'Tên dự án (ví dụ: Logo Café Bình Yên)', value: p?.name || '' });
+    const clientInp = inp({ className: 'input', placeholder: 'Tên khách hàng', value: p?.client || '' });
+    const valueInp = inp({ className: 'input', placeholder: 'Giá trị hợp đồng (số)', type: 'number', value: p?.contractValue || '' });
+    const deadlineInp = inp({ className: 'input', type: 'date', value: p?.deadline || '' });
+    const notesInp = txt({ className: 'input', placeholder: 'Ghi chú...', style: { height: 80, resize: 'vertical' } });
+    if (p?.notes) notesInp.value = p.notes;
+
+    modal.appendChild(div({ className: 'field' }, [el('label', { className: 'input-label' }, ['Tên dự án *']), nameInp]));
+    modal.appendChild(div({ className: 'field' }, [el('label', { className: 'input-label' }, ['Khách hàng']), clientInp]));
+    modal.appendChild(div({ className: 'grid-2' }, [
+      div({ className: 'field' }, [el('label', { className: 'input-label' }, ['Giá trị HĐ (đ)']), valueInp]),
+      div({ className: 'field' }, [el('label', { className: 'input-label' }, ['Deadline']), deadlineInp]),
+    ]));
+    modal.appendChild(div({ className: 'field' }, [el('label', { className: 'input-label' }, ['Ghi chú']), notesInp]));
+
+    modal.appendChild(div({ style: { display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 } }, [
+      btn({ className: 'btn btn-secondary', onClick: () => setState({ modal: null }) }, ['Huỷ']),
+      btn({ className: 'btn btn-primary', onClick: () => {
+        const name = nameInp.value.trim();
+        if (!name) { showToast('❌ Nhập tên dự án!'); return; }
+        const projects = getProjects();
+        const contractValue = valueInp.value ? Number(valueInp.value) : null;
+        if (isEdit) {
+          const idx = projects.findIndex(x => x.id === p.id);
+          projects[idx] = { ...projects[idx], name, client: clientInp.value.trim(), contractValue, deadline: deadlineInp.value || null, notes: notesInp.value.trim() || null };
+          // Recalculate payments if contract value changed
+          if (contractValue && (!projects[idx].payments || !projects[idx].payments.length)) {
+            projects[idx].payments = calcPayments(contractValue);
+          }
+        } else {
+          const newP = {
+            id: genId(), name, client: clientInp.value.trim(), contractValue,
+            deadline: deadlineInp.value || null, notes: notesInp.value.trim() || null,
+            status: 'new', createdAt: new Date().toISOString(),
+            rounds: [
+              { label: 'Brief', status: 'pending', date: null, note: '', feedback: '' },
+              { label: 'Concept', status: 'pending', date: null, note: '', feedback: '' },
+              { label: 'R1', status: 'pending', date: null, note: '', feedback: '' },
+              { label: 'R2', status: 'pending', date: null, note: '', feedback: '' },
+              { label: 'Final', status: 'pending', date: null, note: '', feedback: '' },
+            ],
+            payments: contractValue ? calcPayments(contractValue) : [],
+            docs: {}, logs: [],
+          };
+          projects.push(newP);
+          tgNotify(`📁 <b>Paz Project</b> — Dự án mới!\n\n📁 <b>${name}</b>\n👤 ${clientInp.value.trim() || 'Chưa rõ'}${contractValue ? '\n💰 ' + fmtMoney(contractValue) : ''}`);
+        }
+        saveProjects(projects);
+        setState({ modal: null, ...(isEdit ? {} : { view: 'detail', selectedId: projects[projects.length - 1].id, tab: 'overview' }) });
+        showToast(isEdit ? '✅ Đã cập nhật' : '✅ Đã tạo dự án!');
+      }}, [isEdit ? 'Lưu' : 'Tạo dự án']),
+    ]));
+  }
+
+  else if (S.modal === 'edit_rounds') {
+    const p = getSelectedProject();
+    modal.appendChild(div({ className: 'modal-header' }, [
+      div({ className: 'modal-title display' }, ['🎨 Quản lý Rounds']),
+      btn({ className: 'modal-close', onClick: () => setState({ modal: null }) }, ['×']),
+    ]));
+
+    let rounds = JSON.parse(JSON.stringify(p.rounds || []));
+
+    const roundsList = div({});
+    const renderRoundsList = () => {
+      roundsList.innerHTML = '';
+      rounds.forEach((r, i) => {
+        const row = div({ style: { background: 'var(--surface2)', borderRadius: 'var(--r8)', padding: '10px 12px', marginBottom: 8 } });
+        const top = div({ style: { display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 } });
+
+        const labelInp = inp({ className: 'input', value: r.label, style: { flex: 1, fontSize: 13 }, onInput: e => { rounds[i].label = e.target.value; } });
+        const statusSel = el('select', { className: 'input', style: { width: 130, fontSize: 12 }, onChange: e => { rounds[i].status = e.target.value; } }, [
+          el('option', { value: 'pending', ...(r.status === 'pending' ? { selected: '' } : {}) }, ['Chưa làm']),
+          el('option', { value: 'inprogress', ...(r.status === 'inprogress' ? { selected: '' } : {}) }, ['Đang làm']),
+          el('option', { value: 'review', ...(r.status === 'review' ? { selected: '' } : {}) }, ['Chờ duyệt']),
+          el('option', { value: 'done', ...(r.status === 'done' ? { selected: '' } : {}) }, ['Xong']),
+        ]);
+        const delBtn = btn({ className: 'btn btn-ghost btn-sm', style: { color: 'var(--red)' }, onClick: () => { rounds.splice(i, 1); renderRoundsList(); } }, ['🗑']);
+        top.appendChild(labelInp); top.appendChild(statusSel); top.appendChild(delBtn);
+        row.appendChild(top);
+
+        const dateInp = inp({ className: 'input', type: 'date', value: r.date || '', style: { marginBottom: 6, fontSize: 12 }, onChange: e => { rounds[i].date = e.target.value; } });
+        const noteInp = inp({ className: 'input', placeholder: 'Ghi chú...', value: r.note || '', style: { marginBottom: 6, fontSize: 12 }, onInput: e => { rounds[i].note = e.target.value; } });
+        const fbInp = inp({ className: 'input', placeholder: 'Phản hồi của khách...', value: r.feedback || '', style: { fontSize: 12 }, onInput: e => { rounds[i].feedback = e.target.value; } });
+        row.appendChild(dateInp); row.appendChild(noteInp); row.appendChild(fbInp);
+        roundsList.appendChild(row);
+      });
+    };
+    renderRoundsList();
+
+    modal.appendChild(roundsList);
+    modal.appendChild(btn({ className: 'btn btn-secondary btn-sm', style: { marginBottom: 14 }, onClick: () => { rounds.push({ label: 'R' + (rounds.length), status: 'pending', date: null, note: '', feedback: '' }); renderRoundsList(); } }, ['+ Thêm round']));
+
+    modal.appendChild(div({ style: { display: 'flex', gap: 8, justifyContent: 'flex-end' } }, [
+      btn({ className: 'btn btn-secondary', onClick: () => setState({ modal: null }) }, ['Huỷ']),
+      btn({ className: 'btn btn-primary', onClick: () => {
+        const projects = getProjects();
+        const idx = projects.findIndex(x => x.id === p.id);
+        projects[idx].rounds = rounds;
+        saveProjects(projects);
+        setState({ modal: null });
+        showToast('✅ Đã cập nhật rounds');
+      }}, ['Lưu']),
+    ]));
+  }
+
+  else if (S.modal === 'add_log') {
+    const p = getSelectedProject();
+    modal.appendChild(div({ className: 'modal-header' }, [
+      div({ className: 'modal-title display' }, ['📝 Thêm nhật ký']),
+      btn({ className: 'modal-close', onClick: () => setState({ modal: null }) }, ['×']),
+    ]));
+
+    const typeInp = el('select', { className: 'input', style: { marginBottom: 10 } }, [
+      el('option', { value: '' }, ['-- Loại --']),
+      el('option', { value: 'Gửi file' }, ['📤 Gửi file']),
+      el('option', { value: 'Họp' }, ['🤝 Họp']),
+      el('option', { value: 'Email' }, ['📧 Email']),
+      el('option', { value: 'Zalo/Chat' }, ['💬 Zalo/Chat']),
+      el('option', { value: 'Gọi điện' }, ['📞 Gọi điện']),
+      el('option', { value: 'Khác' }, ['📌 Khác']),
+    ]);
+    const dateInp = inp({ className: 'input', type: 'date', value: today(), style: { marginBottom: 10 } });
+    const sentInp = txt({ className: 'input', placeholder: 'Đã gửi/làm gì? (ví dụ: Gửi R1 logo 3 phương án)', style: { height: 80, marginBottom: 10, resize: 'vertical' } });
+    const responseInp = txt({ className: 'input', placeholder: 'Khách phản hồi gì? (để trống nếu chưa có)', style: { height: 70, resize: 'vertical' } });
+
+    modal.appendChild(div({ className: 'field' }, [el('label', { className: 'input-label' }, ['Loại']), typeInp]));
+    modal.appendChild(div({ className: 'field' }, [el('label', { className: 'input-label' }, ['Ngày']), dateInp]));
+    modal.appendChild(div({ className: 'field' }, [el('label', { className: 'input-label' }, ['Đã làm/gửi gì *']), sentInp]));
+    modal.appendChild(div({ className: 'field' }, [el('label', { className: 'input-label' }, ['Phản hồi của khách']), responseInp]));
+
+    modal.appendChild(div({ style: { display: 'flex', gap: 8, justifyContent: 'flex-end' } }, [
+      btn({ className: 'btn btn-secondary', onClick: () => setState({ modal: null }) }, ['Huỷ']),
+      btn({ className: 'btn btn-primary', onClick: () => {
+        const sent = sentInp.value.trim();
+        if (!sent) { showToast('❌ Nhập nội dung!'); return; }
+        const projects = getProjects();
+        const idx = projects.findIndex(x => x.id === p.id);
+        if (!projects[idx].logs) projects[idx].logs = [];
+        projects[idx].logs.push({ date: dateInp.value, type: typeInp.value, sent, response: responseInp.value.trim() });
+        saveProjects(projects);
+        setState({ modal: null, tab: 'log' });
+        showToast('✅ Đã thêm nhật ký');
+      }}, ['Thêm']),
+    ]));
+  }
+
+  else if (S.modal === 'doc_note') {
+    const d = S.modalData;
+    modal.appendChild(div({ className: 'modal-header' }, [
+      div({ className: 'modal-title display' }, ['Ghi chú: ' + d.label]),
+      btn({ className: 'modal-close', onClick: () => setState({ modal: null, modalData: null }) }, ['×']),
+    ]));
+    const noteInp = txt({ className: 'input', placeholder: 'Ghi chú cho giấy tờ này...', style: { height: 100, resize: 'vertical' } });
+    noteInp.value = d.note;
+    modal.appendChild(div({ className: 'field', style: { marginBottom: 14 } }, [noteInp]));
+    modal.appendChild(div({ style: { display: 'flex', gap: 8, justifyContent: 'flex-end' } }, [
+      btn({ className: 'btn btn-secondary', onClick: () => setState({ modal: null, modalData: null }) }, ['Huỷ']),
+      btn({ className: 'btn btn-primary', onClick: () => {
+        const projects = getProjects();
+        const pidx = projects.findIndex(x => x.id === d.projectId);
+        if (!projects[pidx].docs) projects[pidx].docs = {};
+        projects[pidx].docs[d.docId] = { ...projects[pidx].docs[d.docId], note: noteInp.value.trim() };
+        saveProjects(projects);
+        setState({ modal: null, modalData: null });
+        showToast('✅ Đã lưu ghi chú');
+      }}, ['Lưu']),
+    ]));
+  }
+
+  else if (S.modal === 'edit_payments') {
+    const p = getSelectedProject();
+    let payments = JSON.parse(JSON.stringify(p.payments || []));
+    modal.appendChild(div({ className: 'modal-header' }, [
+      div({ className: 'modal-title display' }, ['💰 Đợt thanh toán']),
+      btn({ className: 'modal-close', onClick: () => setState({ modal: null }) }, ['×']),
+    ]));
+
+    const payList = div({});
+    const renderPayList = () => {
+      payList.innerHTML = '';
+      payments.forEach((pay, i) => {
+        const row = div({ style: { display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 8, marginBottom: 8, alignItems: 'center' } });
+        const labelInp = inp({ className: 'input', value: pay.label, style: { fontSize: 12 }, onInput: e => { payments[i].label = e.target.value; } });
+        const amtInp = inp({ className: 'input', type: 'number', value: pay.amount, style: { width: 120, fontSize: 12 }, onInput: e => { payments[i].amount = Number(e.target.value); } });
+        const dateInp = inp({ className: 'input', type: 'date', value: pay.dueDate || '', style: { fontSize: 12 }, onChange: e => { payments[i].dueDate = e.target.value; } });
+        const delBtn = btn({ className: 'btn btn-ghost btn-sm', style: { color: 'var(--red)' }, onClick: () => { payments.splice(i, 1); renderPayList(); } }, ['🗑']);
+        row.appendChild(labelInp);
+        const subgrid = div({ style: { display: 'flex', gap: 6 } });
+        subgrid.appendChild(amtInp); subgrid.appendChild(dateInp); subgrid.appendChild(delBtn);
+        payList.appendChild(div({ style: { marginBottom: 8 } }, [labelInp, div({ style: { display: 'flex', gap: 6, marginTop: 4 } }, [amtInp, dateInp, delBtn])]));
+      });
+    };
+    renderPayList();
+    modal.appendChild(payList);
+    modal.appendChild(btn({ className: 'btn btn-secondary btn-sm', style: { marginBottom: 14 }, onClick: () => { payments.push({ label: 'Đợt ' + (payments.length + 1), amount: 0, paid: false, paidAt: null, dueDate: null }); renderPayList(); } }, ['+ Thêm đợt']));
+
+    modal.appendChild(div({ style: { display: 'flex', gap: 8, justifyContent: 'flex-end' } }, [
+      btn({ className: 'btn btn-secondary', onClick: () => setState({ modal: null }) }, ['Huỷ']),
+      btn({ className: 'btn btn-primary', onClick: () => {
+        const projects = getProjects();
+        const idx = projects.findIndex(x => x.id === p.id);
+        projects[idx].payments = payments;
+        saveProjects(projects);
+        setState({ modal: null });
+        showToast('✅ Đã cập nhật');
+      }}, ['Lưu']),
+    ]));
+  }
+
+  overlay.appendChild(modal);
+  app.appendChild(overlay);
+}
+
+// ── Init ───────────────────────────────────────────────────────────────────────
+function init() {
+  render();
+  // Check deadlines every hour
+  setInterval(checkDeadlines, 3600000);
+  checkDeadlines();
+}
+
+init();
+</script>
+</body>
+</html>
