@@ -153,6 +153,33 @@ const DOCS = [
   { id: 'invoice',   label: 'Hoá đơn', icon: '🧾' },
 ];
 
+// ── Service Packages (Hạng mục) ────────────────────────────────────────────────
+// Builds rounds from free-form packages array: [{name, roundCount}]
+function buildRoundsFromPackages(packages) {
+  if (!packages || !packages.length) {
+    return [
+      { label: 'Brief',   status: 'pending', date: null, note: '', feedback: '' },
+      { label: 'Concept', status: 'pending', date: null, note: '', feedback: '' },
+      { label: 'R1',      status: 'pending', date: null, note: '', feedback: '' },
+      { label: 'R2',      status: 'pending', date: null, note: '', feedback: '' },
+      { label: 'Final',   status: 'pending', date: null, note: '', feedback: '' },
+    ];
+  }
+  const allRounds = [];
+  const multi = packages.length > 1;
+  packages.forEach(pkg => {
+    const n = Math.max(1, Math.min(10, Number(pkg.roundCount) || 4));
+    for (let i = 1; i <= n; i++) {
+      allRounds.push({
+        label: multi ? `[${pkg.name}] Round ${i}` : `Round ${i}`,
+        status: 'pending', date: null, note: '', feedback: '',
+        pkg: pkg.name,
+      });
+    }
+  });
+  return allRounds;
+}
+
 // ── State ──────────────────────────────────────────────────────────────────────
 let S = {
   view: 'list',
@@ -263,13 +290,15 @@ async function syncPush() {
   S.syncStatus = 'syncing';
   updateSyncIndicator();
   try {
+    // Include shared config (tgToken, tgChatId, reminderHour) in cloud so all devices get it
+    const sharedCfg = { tgToken: cfg.tgToken || '', tgChatId: cfg.tgChatId || '', reminderHour: cfg.reminderHour ?? 8 };
     const res = await fetch(`${JSONBIN_BASE}/b/${cfg.jsonbinBin}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
         'X-Master-Key': cfg.jsonbinKey,
       },
-      body: JSON.stringify({ projects: getProjects(), updatedAt: new Date().toISOString() }),
+      body: JSON.stringify({ projects: getProjects(), sharedCfg, updatedAt: new Date().toISOString() }),
     });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     S.syncStatus = 'ok';
@@ -296,6 +325,15 @@ async function syncPull() {
     const remote = data.record;
     if (remote && Array.isArray(remote.projects)) {
       saveProjects(remote.projects);
+      // Restore shared config (tgToken, tgChatId) to local if not set
+      if (remote.sharedCfg) {
+        const localCfg = getConfig();
+        const merged = { ...remote.sharedCfg, ...localCfg, jsonbinKey: localCfg.jsonbinKey, jsonbinBin: localCfg.jsonbinBin };
+        // If local has no tg config but cloud has it, pull it in
+        if (!localCfg.tgToken && remote.sharedCfg.tgToken) merged.tgToken = remote.sharedCfg.tgToken;
+        if (!localCfg.tgChatId && remote.sharedCfg.tgChatId) merged.tgChatId = remote.sharedCfg.tgChatId;
+        saveConfig(merged);
+      }
       S.syncStatus = 'ok';
       updateSyncIndicator();
       return true;
@@ -454,13 +492,8 @@ async function processTgUpdate(update) {
       id: genId(), name, client, contractValue,
       deadline, notes: null,
       status: 'new', createdAt: new Date().toISOString(),
-      rounds: [
-        { label: 'Brief',   status: 'pending', date: null, note: '', feedback: '' },
-        { label: 'Concept', status: 'pending', date: null, note: '', feedback: '' },
-        { label: 'R1',      status: 'pending', date: null, note: '', feedback: '' },
-        { label: 'R2',      status: 'pending', date: null, note: '', feedback: '' },
-        { label: 'Final',   status: 'pending', date: null, note: '', feedback: '' },
-      ],
+      servicePackages: [],
+      rounds: buildRoundsFromPackages([]),
       payments: contractValue ? calcPayments(contractValue) : [],
       docs: {}, logs: [],
     };
@@ -843,6 +876,17 @@ function renderDetail(wrap) {
 
 // ── Overview Tab ───────────────────────────────────────────────────────────────
 function renderOverviewTab(wrap, p) {
+  // Show service packages if any
+  if (p.servicePackages && p.servicePackages.length) {
+    const pkgBadges = div({ style: { display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 } });
+    p.servicePackages.forEach(pkg => {
+      const label = typeof pkg === 'string' ? pkg : pkg.name;
+      if (!label) return;
+      pkgBadges.appendChild(span({ style: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 100, fontSize: 12, fontWeight: 600, background: 'var(--accent-bg)', color: 'var(--accent)', border: '1px solid var(--accent)' } }, ['🎨 ' + label]));
+    });
+    wrap.appendChild(pkgBadges);
+  }
+
   const roundsCard = div({ style: { background: 'var(--surface)', borderRadius: 'var(--r12)', border: '1px solid var(--border)', padding: '16px 16px 16px 20px', marginBottom: 12, overflow: 'visible' } });
   const rHeader = div({ className: 'section-header' });
   rHeader.appendChild(div({ className: 'section-title' }, ['🎨 Rounds thiết kế']));
@@ -852,27 +896,76 @@ function renderOverviewTab(wrap, p) {
   if (!(p.rounds || []).length) {
     roundsCard.appendChild(div({ style: { color: 'var(--text3)', fontSize: 13 } }, ['Chưa có rounds — bấm "Quản lý" để thêm']));
   } else {
-    const timeline = div({ className: 'timeline' });
-    p.rounds.forEach(r => {
-      const item = div({ className: 'timeline-item' });
-      const left = div({ className: 'timeline-left' });
-      left.appendChild(div({ className: 'timeline-dot' + (r.status !== 'done' && r.status !== 'inprogress' ? ' empty' : '') }));
-      left.appendChild(div({ className: 'timeline-line' }));
-      item.appendChild(left);
-      const content = div({ style: { flex: 1, paddingBottom: 4 } });
-      const rTop = div({ style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 } });
-      rTop.appendChild(div({ style: { fontWeight: 600, fontSize: 13 } }, [r.label]));
-      const rStatusMap = { pending: { l: 'Chưa làm', bg: '#f3f4f6', c: '#6b7280' }, inprogress: { l: 'Đang làm', bg: 'var(--yellow-bg)', c: 'var(--yellow)' }, review: { l: 'Chờ duyệt', bg: 'var(--purple-bg)', c: 'var(--purple)' }, done: { l: 'Xong', bg: 'var(--green-bg)', c: 'var(--green)' } };
-      const rs = rStatusMap[r.status] || rStatusMap.pending;
-      rTop.appendChild(span({ style: { fontSize: 11, background: rs.bg, color: rs.c, padding: '2px 8px', borderRadius: 100, fontWeight: 600 } }, [rs.l]));
-      if (r.date) rTop.appendChild(span({ style: { fontSize: 11, color: 'var(--text3)' } }, [fmtDate(r.date)]));
-      content.appendChild(rTop);
-      if (r.note) content.appendChild(div({ style: { fontSize: 12, color: 'var(--text3)', fontStyle: 'italic' } }, [r.note]));
-      if (r.feedback) content.appendChild(div({ style: { fontSize: 12, color: 'var(--blue)', background: 'var(--blue-bg)', padding: '4px 8px', borderRadius: 4, marginTop: 4 } }, ['💬 ' + r.feedback]));
-      item.appendChild(content);
-      timeline.appendChild(item);
-    });
-    roundsCard.appendChild(timeline);
+    // Group rounds by package if multi-package project
+    const hasPkgs = p.servicePackages && p.servicePackages.length > 1;
+    if (hasPkgs) {
+      // Group by pkg field
+      const groups = {};
+      const ungrouped = [];
+      p.rounds.forEach(r => {
+        if (r.pkg) {
+          if (!groups[r.pkg]) groups[r.pkg] = [];
+          groups[r.pkg].push(r);
+        } else {
+          ungrouped.push(r);
+        }
+      });
+      const renderRoundsTimeline = (rounds) => {
+        const timeline = div({ className: 'timeline' });
+        rounds.forEach(r => {
+          const item = div({ className: 'timeline-item' });
+          const left = div({ className: 'timeline-left' });
+          left.appendChild(div({ className: 'timeline-dot' + (r.status !== 'done' && r.status !== 'inprogress' ? ' empty' : '') }));
+          left.appendChild(div({ className: 'timeline-line' }));
+          item.appendChild(left);
+          const content = div({ style: { flex: 1, paddingBottom: 4 } });
+          const rTop = div({ style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 } });
+          const displayLabel = r.label.replace(/^\[.*?\]\s*/, '');
+          rTop.appendChild(div({ style: { fontWeight: 600, fontSize: 13 } }, [displayLabel]));
+          const rStatusMap = { pending: { l: 'Chưa làm', bg: '#f3f4f6', c: '#6b7280' }, inprogress: { l: 'Đang làm', bg: 'var(--yellow-bg)', c: 'var(--yellow)' }, review: { l: 'Chờ duyệt', bg: 'var(--purple-bg)', c: 'var(--purple)' }, done: { l: 'Xong', bg: 'var(--green-bg)', c: 'var(--green)' } };
+          const rs = rStatusMap[r.status] || rStatusMap.pending;
+          rTop.appendChild(span({ style: { fontSize: 11, background: rs.bg, color: rs.c, padding: '2px 8px', borderRadius: 100, fontWeight: 600 } }, [rs.l]));
+          if (r.date) rTop.appendChild(span({ style: { fontSize: 11, color: 'var(--text3)' } }, [fmtDate(r.date)]));
+          content.appendChild(rTop);
+          if (r.note) content.appendChild(div({ style: { fontSize: 12, color: 'var(--text3)', fontStyle: 'italic' } }, [r.note]));
+          if (r.feedback) content.appendChild(div({ style: { fontSize: 12, color: 'var(--blue)', background: 'var(--blue-bg)', padding: '4px 8px', borderRadius: 4, marginTop: 4 } }, ['💬 ' + r.feedback]));
+          item.appendChild(content);
+          timeline.appendChild(item);
+        });
+        return timeline;
+      };
+      p.servicePackages.forEach(pkg => {
+        const pkgName = typeof pkg === 'string' ? pkg : pkg.name;
+        if (!groups[pkgName] || !groups[pkgName].length) return;
+        const pkgSection = div({ style: { marginBottom: 14 } });
+        pkgSection.appendChild(div({ style: { fontSize: 12, fontWeight: 700, color: 'var(--accent)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 4 } }, ['🎨 ' + pkgName]));
+        pkgSection.appendChild(renderRoundsTimeline(groups[pkgName]));
+        roundsCard.appendChild(pkgSection);
+      });
+      if (ungrouped.length) roundsCard.appendChild(renderRoundsTimeline(ungrouped));
+    } else {
+      const timeline = div({ className: 'timeline' });
+      p.rounds.forEach(r => {
+        const item = div({ className: 'timeline-item' });
+        const left = div({ className: 'timeline-left' });
+        left.appendChild(div({ className: 'timeline-dot' + (r.status !== 'done' && r.status !== 'inprogress' ? ' empty' : '') }));
+        left.appendChild(div({ className: 'timeline-line' }));
+        item.appendChild(left);
+        const content = div({ style: { flex: 1, paddingBottom: 4 } });
+        const rTop = div({ style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 } });
+        rTop.appendChild(div({ style: { fontWeight: 600, fontSize: 13 } }, [r.label]));
+        const rStatusMap = { pending: { l: 'Chưa làm', bg: '#f3f4f6', c: '#6b7280' }, inprogress: { l: 'Đang làm', bg: 'var(--yellow-bg)', c: 'var(--yellow)' }, review: { l: 'Chờ duyệt', bg: 'var(--purple-bg)', c: 'var(--purple)' }, done: { l: 'Xong', bg: 'var(--green-bg)', c: 'var(--green)' } };
+        const rs = rStatusMap[r.status] || rStatusMap.pending;
+        rTop.appendChild(span({ style: { fontSize: 11, background: rs.bg, color: rs.c, padding: '2px 8px', borderRadius: 100, fontWeight: 600 } }, [rs.l]));
+        if (r.date) rTop.appendChild(span({ style: { fontSize: 11, color: 'var(--text3)' } }, [fmtDate(r.date)]));
+        content.appendChild(rTop);
+        if (r.note) content.appendChild(div({ style: { fontSize: 12, color: 'var(--text3)', fontStyle: 'italic' } }, [r.note]));
+        if (r.feedback) content.appendChild(div({ style: { fontSize: 12, color: 'var(--blue)', background: 'var(--blue-bg)', padding: '4px 8px', borderRadius: 4, marginTop: 4 } }, ['💬 ' + r.feedback]));
+        item.appendChild(content);
+        timeline.appendChild(item);
+      });
+      roundsCard.appendChild(timeline);
+    }
   }
   wrap.appendChild(roundsCard);
 
@@ -1147,14 +1240,15 @@ function renderSettings(wrap) {
   // ── Telegram Section ─────────────────────────────────────────────────────────
   const tgCard = div({ className: 'settings-section' });
   tgCard.appendChild(div({ className: 'settings-section-title' }, ['🤖 Telegram Bot']));
-  tgCard.appendChild(div({ className: 'settings-section-desc' }, ['Nhận thông báo + điều khiển bằng lệnh /add, /list, /status trực tiếp từ Telegram.']));
+  tgCard.appendChild(div({ className: 'settings-section-desc' }, ['Nhận thông báo + điều khiển bằng lệnh /add, /list, /status trực tiếp từ Telegram. Token & Chat ID được lưu cloud — thiết bị khác sync xong là dùng được ngay.']));
 
   tgCard.appendChild(div({ className: 'info-box' }, [
     '📋 Hướng dẫn:\n',
     '1. Nhắn @BotFather → /newbot → lấy Token\n',
     '2. Nhắn /start cho bot của bạn\n',
     '3. Nhắn @userinfobot để lấy Chat ID\n',
-    '4. Bật "Polling" để nhận lệnh từ Telegram',
+    '4. Bấm "Lưu & Sync" — tất cả thiết bị dùng chung JSONBin sẽ tự nhận config\n',
+    '5. Bật "Polling" để nhận lệnh từ Telegram',
   ]));
 
   const tokenInp = inp({ className: 'input', placeholder: 'Bot Token (1234567:ABCdef...)', value: cfg.tgToken || '' });
@@ -1183,11 +1277,16 @@ function renderSettings(wrap) {
     const newCfg = { ...getConfig(), tgToken: tokenInp.value.trim(), tgChatId: chatInp.value.trim() };
     saveConfig(newCfg);
     showToast('✅ Đã lưu!');
+    // Push tg config to cloud so all devices get it automatically
+    if (newCfg.jsonbinKey && newCfg.jsonbinBin) {
+      await syncPush();
+      showToast('☁️ Đã sync Telegram config lên cloud!');
+    }
     if (newCfg.tgToken && newCfg.tgChatId) {
       await tgNotify('🎉 <b>Paz Project v2</b> đã kết nối!\n\nCác lệnh hỗ trợ:\n/list — Xem dự án\n/add — Thêm dự án mới\n/status — Cập nhật trạng thái\n/help — Trợ giúp');
       showToast('✅ Đã gửi tin test!');
     }
-  }}, ['Lưu & Test']));
+  }}, ['Lưu & Sync']));
 
   // Polling toggle
   const pollingBtn = btn({ className: 'btn ' + (S.tgPolling ? 'btn-danger' : 'btn-secondary'), onClick: () => {
@@ -1247,6 +1346,68 @@ function renderModal(app) {
       div({ className: 'field' }, [el('label', { className: 'input-label' }, ['Giá trị HĐ (đ)']), valueInp]),
       div({ className: 'field' }, [el('label', { className: 'input-label' }, ['Deadline']), deadlineInp]),
     ]));
+
+    // ── Hạng mục dịch vụ (tự điền, chỉ khi tạo mới) ────────────────────────
+    // packages = [{name, roundCount}]
+    let customPkgs = [{ name: '', roundCount: 4 }];
+    if (!isEdit) {
+      const pkgField = div({ className: 'field' });
+      pkgField.appendChild(el('label', { className: 'input-label' }, ['Hạng mục dịch vụ']));
+
+      const pkgList = div({ style: { display: 'flex', flexDirection: 'column', gap: 6 } });
+
+      const renderPkgRows = () => {
+        pkgList.innerHTML = '';
+        customPkgs.forEach((pkg, i) => {
+          const row = div({ style: { display: 'flex', gap: 6, alignItems: 'center' } });
+
+          const nameI = inp({
+            className: 'input',
+            placeholder: 'Tên hạng mục (vd: Logo, Bảng hiệu...)',
+            value: pkg.name,
+            style: { flex: 1 },
+            onInput: e => { customPkgs[i].name = e.target.value; },
+          });
+
+          const countI = inp({
+            className: 'input',
+            type: 'number',
+            min: 1, max: 10,
+            value: pkg.roundCount,
+            style: { width: 80, textAlign: 'center' },
+            onInput: e => { customPkgs[i].roundCount = Number(e.target.value) || 4; },
+          });
+
+          const countWrap = div({ style: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, flexShrink: 0 } });
+          countWrap.appendChild(countI);
+          countWrap.appendChild(div({ style: { fontSize: 10, color: 'var(--text3)', whiteSpace: 'nowrap' } }, ['rounds']));
+
+          const delBtn = btn({
+            className: 'btn btn-ghost btn-sm',
+            style: { color: 'var(--text3)', padding: '6px 8px', flexShrink: 0, visibility: customPkgs.length > 1 ? 'visible' : 'hidden' },
+            onClick: () => { customPkgs.splice(i, 1); renderPkgRows(); },
+          }, ['✕']);
+
+          row.appendChild(nameI);
+          row.appendChild(countWrap);
+          row.appendChild(delBtn);
+          pkgList.appendChild(row);
+        });
+      };
+
+      renderPkgRows();
+      pkgField.appendChild(pkgList);
+
+      const addPkgBtn = btn({
+        className: 'btn btn-ghost btn-sm',
+        style: { marginTop: 6, color: 'var(--accent)' },
+        onClick: () => { customPkgs.push({ name: '', roundCount: 4 }); renderPkgRows(); },
+      }, ['+ Thêm hạng mục']);
+      pkgField.appendChild(addPkgBtn);
+      pkgField.appendChild(div({ style: { fontSize: 11, color: 'var(--text3)', marginTop: 5 } }, ['Điền tên hạng mục và số rounds. Bỏ trống tên = dùng rounds mặc định.']));
+      modal.appendChild(pkgField);
+    }
+
     modal.appendChild(div({ className: 'field' }, [el('label', { className: 'input-label' }, ['Ghi chú']), notesInp]));
     modal.appendChild(div({ style: { display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 } }, [
       btn({ className: 'btn btn-secondary', onClick: () => setState({ modal: null }) }, ['Huỷ']),
@@ -1262,22 +1423,19 @@ function renderModal(app) {
             projects[idx].payments = calcPayments(contractValue);
           }
         } else {
+          const validPkgs = isEdit ? [] : customPkgs.filter(x => x.name.trim());
           const newP = {
             id: genId(), name, client: clientInp.value.trim(), contractValue,
             deadline: deadlineInp.value || null, notes: notesInp.value.trim() || null,
             status: 'new', createdAt: new Date().toISOString(),
-            rounds: [
-              { label: 'Brief',   status: 'pending', date: null, note: '', feedback: '' },
-              { label: 'Concept', status: 'pending', date: null, note: '', feedback: '' },
-              { label: 'R1',      status: 'pending', date: null, note: '', feedback: '' },
-              { label: 'R2',      status: 'pending', date: null, note: '', feedback: '' },
-              { label: 'Final',   status: 'pending', date: null, note: '', feedback: '' },
-            ],
+            servicePackages: validPkgs,
+            rounds: buildRoundsFromPackages(validPkgs),
             payments: contractValue ? calcPayments(contractValue) : [],
             docs: {}, logs: [],
           };
           projects.push(newP);
-          tgNotify(`📁 <b>Paz Project</b> — Dự án mới!\n\n📁 <b>${name}</b>\n👤 ${clientInp.value.trim() || 'Chưa rõ'}${contractValue ? '\n💰 ' + fmtMoney(contractValue) : ''}`);
+          const pkgLabels = validPkgs.map(x => x.name).filter(Boolean).join(', ');
+          tgNotify(`📁 <b>Paz Project</b> — Dự án mới!\n\n📁 <b>${name}</b>\n👤 ${clientInp.value.trim() || 'Chưa rõ'}${contractValue ? '\n💰 ' + fmtMoney(contractValue) : ''}${pkgLabels ? '\n🎨 ' + pkgLabels : ''}`);
         }
         await saveAndSync(projects);
         setState({ modal: null, ...(isEdit ? {} : { view: 'detail', selectedId: projects[projects.length - 1].id, tab: 'overview' }) });
