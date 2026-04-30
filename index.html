@@ -823,7 +823,18 @@ function renderDetail(wrap) {
   hInfo.appendChild(div({ style: { fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 700, marginBottom: 4 } }, [p.name]));
   const meta = div({ style: { display: 'flex', gap: 12, flexWrap: 'wrap', fontSize: 13, color: 'var(--text2)' } });
   meta.appendChild(span({}, ['👤 ' + (p.client || '—')]));
-  if (p.contractValue) meta.appendChild(span({}, ['💰 ' + fmtMoney(p.contractValue)]));
+  if (p.contractValue || p.contractValueBeforeVat) {
+    const vatRate = p.vatRate ?? 10;
+    const before = Number(p.contractValueBeforeVat) || 0;
+    const after  = Number(p.contractValue) || 0;
+    if (before && after && vatRate > 0) {
+      meta.appendChild(span({}, [`💰 ${fmtMoney(before)} + ${vatRate}% = ${fmtMoney(after)}`]));
+    } else if (after) {
+      meta.appendChild(span({}, ['💰 ' + fmtMoney(after)]));
+    } else if (before) {
+      meta.appendChild(span({}, ['💰 ' + fmtMoney(before)]));
+    }
+  }
   if (p.deadline) meta.appendChild(span({}, ['📅 ' + fmtDate(p.deadline)]));
   hInfo.appendChild(meta);
   hTop.appendChild(hInfo);
@@ -980,10 +991,30 @@ function renderOverviewTab(wrap, p) {
 // ── Payments Tab ───────────────────────────────────────────────────────────────
 function renderPaymentsTab(wrap, p) {
   const totalAmt = Number(p.contractValue) || 0;
+  const totalBefore = Number(p.contractValueBeforeVat) || 0;
+  const vatRate = p.vatRate ?? 10;
+  const vatAmt = totalBefore ? Math.round(totalBefore * vatRate / 100) : (totalAmt && vatRate ? Math.round(totalAmt - totalAmt / (1 + vatRate / 100)) : 0);
   const totalPaid = (p.payments || []).filter(x => x.paid).reduce((s, x) => s + (Number(x.amount) || 0), 0);
   const remaining = totalAmt - totalPaid;
 
   const sumCard = div({ style: { background: 'var(--surface)', borderRadius: 'var(--r12)', border: '1px solid var(--border)', padding: 16, marginBottom: 12 } });
+
+  // VAT breakdown row (only if has pricing)
+  if (totalAmt || totalBefore) {
+    const vatRow = div({ style: { background: 'var(--surface2)', borderRadius: 'var(--r8)', padding: '10px 12px', marginBottom: 12, fontSize: 12 } });
+    const rows = [];
+    if (totalBefore) rows.push({ label: 'Giá chưa thuế', value: fmtMoney(totalBefore), bold: false });
+    if (vatRate > 0) rows.push({ label: `Thuế GTGT (${vatRate}%)`, value: fmtMoney(vatAmt), bold: false });
+    if (totalAmt) rows.push({ label: 'Giá đã có thuế', value: fmtMoney(totalAmt), bold: true });
+    rows.forEach(r => {
+      const row = div({ style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 } });
+      row.appendChild(span({ style: { color: 'var(--text3)' } }, [r.label]));
+      row.appendChild(span({ style: { fontWeight: r.bold ? 700 : 500, color: r.bold ? 'var(--text1)' : 'var(--text2)', fontFamily: r.bold ? 'var(--font-display)' : 'inherit' } }, [r.value]));
+      vatRow.appendChild(row);
+    });
+    sumCard.appendChild(vatRow);
+  }
+
   const sumGrid = div({ style: { display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10 } });
   [
     { label: 'Tổng HĐ', value: fmtMoney(totalAmt), color: 'var(--text1)' },
@@ -1333,17 +1364,78 @@ function renderModal(app) {
       div({ className: 'modal-title display' }, [isEdit ? 'Sửa dự án' : 'Dự án mới']),
       btn({ className: 'modal-close', onClick: () => setState({ modal: null }) }, ['×']),
     ]));
-    const nameInp    = inp({ className: 'input', placeholder: 'Tên dự án (ví dụ: Logo Café Bình Yên)', value: p?.name || '' });
-    const clientInp  = inp({ className: 'input', placeholder: 'Tên khách hàng', value: p?.client || '' });
-    const valueInp   = inp({ className: 'input', placeholder: 'Giá trị hợp đồng (số)', type: 'number', value: p?.contractValue || '' });
-    const deadlineInp= inp({ className: 'input', type: 'date', value: p?.deadline || '' });
-    const notesInp   = txt({ className: 'input', placeholder: 'Ghi chú...', style: { height: 80, resize: 'vertical' } });
+    const nameInp     = inp({ className: 'input', placeholder: 'Tên dự án (ví dụ: Logo Café Bình Yên)', value: p?.name || '' });
+    const clientInp   = inp({ className: 'input', placeholder: 'Tên khách hàng', value: p?.client || '' });
+    const deadlineInp = inp({ className: 'input', type: 'date', value: p?.deadline || '' });
+    const notesInp    = txt({ className: 'input', placeholder: 'Ghi chú...', style: { height: 80, resize: 'vertical' } });
     if (p?.notes) notesInp.value = p.notes;
+
+    // VAT fields — link together reactively
+    const savedVat = p?.vatRate ?? 10;
+    const savedBefore = p?.contractValueBeforeVat || '';
+    const savedAfter  = p?.contractValue || '';
+
+    const vatRateInp = el('select', { className: 'input', style: { width: '100%' } }, [
+      el('option', { value: 0,  ...(savedVat === 0  ? { selected: '' } : {}) }, ['0% — Không có thuế']),
+      el('option', { value: 5,  ...(savedVat === 5  ? { selected: '' } : {}) }, ['5% GTGT']),
+      el('option', { value: 8,  ...(savedVat === 8  ? { selected: '' } : {}) }, ['8% GTGT']),
+      el('option', { value: 10, ...(savedVat === 10 ? { selected: '' } : {}) }, ['10% GTGT']),
+    ]);
+    const beforeVatInp = inp({ className: 'input', placeholder: 'Giá chưa thuế', type: 'number', value: savedBefore });
+    const afterVatInp  = inp({ className: 'input', placeholder: 'Giá đã có thuế', type: 'number', value: savedAfter });
+    const vatAmtDisp   = div({ style: { fontSize: 11, color: 'var(--text3)', marginTop: 4, minHeight: 16 } });
+
+    const updateVatDisplay = () => {
+      const rate = Number(vatRateInp.value) / 100;
+      const before = Number(beforeVatInp.value) || 0;
+      const after  = Number(afterVatInp.value) || 0;
+      if (before) {
+        vatAmtDisp.textContent = rate ? `Tiền thuế: ${fmtMoney(Math.round(before * rate))} → Tổng: ${fmtMoney(Math.round(before * (1 + rate)))}` : '';
+      } else if (after) {
+        vatAmtDisp.textContent = rate ? `Giá chưa thuế: ${fmtMoney(Math.round(after / (1 + rate)))} · Tiền thuế: ${fmtMoney(Math.round(after - after / (1 + rate)))}` : '';
+      } else {
+        vatAmtDisp.textContent = '';
+      }
+    };
+
+    // Sync: typing before → auto-fill after
+    beforeVatInp.addEventListener('input', () => {
+      const rate = Number(vatRateInp.value) / 100;
+      const before = Number(beforeVatInp.value);
+      if (before && rate) afterVatInp.value = Math.round(before * (1 + rate));
+      else if (before && !rate) afterVatInp.value = before;
+      updateVatDisplay();
+    });
+    // Sync: typing after → auto-fill before
+    afterVatInp.addEventListener('input', () => {
+      const rate = Number(vatRateInp.value) / 100;
+      const after = Number(afterVatInp.value);
+      if (after && rate) beforeVatInp.value = Math.round(after / (1 + rate));
+      else if (after && !rate) beforeVatInp.value = after;
+      updateVatDisplay();
+    });
+    vatRateInp.addEventListener('change', () => {
+      // recalculate from beforeVat if available
+      const rate = Number(vatRateInp.value) / 100;
+      const before = Number(beforeVatInp.value);
+      if (before) afterVatInp.value = Math.round(before * (1 + rate));
+      updateVatDisplay();
+    });
+    updateVatDisplay();
 
     modal.appendChild(div({ className: 'field' }, [el('label', { className: 'input-label' }, ['Tên dự án *']), nameInp]));
     modal.appendChild(div({ className: 'field' }, [el('label', { className: 'input-label' }, ['Khách hàng']), clientInp]));
+    modal.appendChild(div({ className: 'field' }, [
+      el('label', { className: 'input-label' }, ['Thuế GTGT']),
+      vatRateInp,
+    ]));
     modal.appendChild(div({ className: 'grid-2' }, [
-      div({ className: 'field' }, [el('label', { className: 'input-label' }, ['Giá trị HĐ (đ)']), valueInp]),
+      div({ className: 'field' }, [el('label', { className: 'input-label' }, ['Giá chưa thuế (đ)']), beforeVatInp]),
+      div({ className: 'field' }, [el('label', { className: 'input-label' }, ['Giá đã có thuế (đ)']), afterVatInp]),
+    ]));
+    modal.appendChild(vatAmtDisp);
+    modal.appendChild(div({ style: { height: 8 } }));
+    modal.appendChild(div({ className: 'grid-2' }, [
       div({ className: 'field' }, [el('label', { className: 'input-label' }, ['Deadline']), deadlineInp]),
     ]));
 
@@ -1415,17 +1507,19 @@ function renderModal(app) {
         const name = nameInp.value.trim();
         if (!name) { showToast('❌ Nhập tên dự án!'); return; }
         const projects = getProjects();
-        const contractValue = valueInp.value ? Number(valueInp.value) : null;
+        const contractValue = afterVatInp.value ? Number(afterVatInp.value) : null;
+        const contractValueBeforeVat = beforeVatInp.value ? Number(beforeVatInp.value) : null;
+        const vatRate = Number(vatRateInp.value);
         if (isEdit) {
           const idx = projects.findIndex(x => x.id === p.id);
-          projects[idx] = { ...projects[idx], name, client: clientInp.value.trim(), contractValue, deadline: deadlineInp.value || null, notes: notesInp.value.trim() || null };
+          projects[idx] = { ...projects[idx], name, client: clientInp.value.trim(), contractValue, contractValueBeforeVat, vatRate, deadline: deadlineInp.value || null, notes: notesInp.value.trim() || null };
           if (contractValue && (!projects[idx].payments || !projects[idx].payments.length)) {
             projects[idx].payments = calcPayments(contractValue);
           }
         } else {
-          const validPkgs = isEdit ? [] : customPkgs.filter(x => x.name.trim());
+          const validPkgs = customPkgs.filter(x => x.name.trim());
           const newP = {
-            id: genId(), name, client: clientInp.value.trim(), contractValue,
+            id: genId(), name, client: clientInp.value.trim(), contractValue, contractValueBeforeVat, vatRate,
             deadline: deadlineInp.value || null, notes: notesInp.value.trim() || null,
             status: 'new', createdAt: new Date().toISOString(),
             servicePackages: validPkgs,
@@ -1435,7 +1529,7 @@ function renderModal(app) {
           };
           projects.push(newP);
           const pkgLabels = validPkgs.map(x => x.name).filter(Boolean).join(', ');
-          tgNotify(`📁 <b>Paz Project</b> — Dự án mới!\n\n📁 <b>${name}</b>\n👤 ${clientInp.value.trim() || 'Chưa rõ'}${contractValue ? '\n💰 ' + fmtMoney(contractValue) : ''}${pkgLabels ? '\n🎨 ' + pkgLabels : ''}`);
+          tgNotify(`📁 <b>Paz Project</b> — Dự án mới!\n\n📁 <b>${name}</b>\n👤 ${clientInp.value.trim() || 'Chưa rõ'}${contractValueBeforeVat ? '\n💰 ' + fmtMoney(contractValueBeforeVat) + ' (chưa thuế)' : ''}${contractValue ? '\n💰 ' + fmtMoney(contractValue) + ' (đã thuế ' + vatRate + '%)' : ''}${pkgLabels ? '\n🎨 ' + pkgLabels : ''}`);
         }
         await saveAndSync(projects);
         setState({ modal: null, ...(isEdit ? {} : { view: 'detail', selectedId: projects[projects.length - 1].id, tab: 'overview' }) });
