@@ -841,7 +841,7 @@ function renderDetail(wrap) {
 
   const stSelect = el('select', { className: 'input', style: { width: 'auto', fontSize: 12 }, onChange: async e => {
     const projects = getProjects();
-    const idx = projects.findIndex(x => x.id === p.id);
+    const idx = projects.findIndex(x => x.id === S.selectedId);
     projects[idx].status = e.target.value;
     if (e.target.value === 'done') {
       projects[idx].completedAt = new Date().toISOString();
@@ -1108,7 +1108,7 @@ function renderPaymentsTab(wrap, p) {
       },
       onClick: async () => {
         const projects = getProjects();
-        const pidx = projects.findIndex(x => x.id === p.id);
+        const pidx = projects.findIndex(x => x.id === S.selectedId);
         const wasPaid = projects[pidx].payments[i].paid;
         projects[pidx].payments[i].paid = !wasPaid;
         projects[pidx].payments[i].paidAt = !wasPaid ? new Date().toISOString() : null;
@@ -1136,7 +1136,7 @@ function renderDocsTab(wrap, p) {
     const row = div({ className: 'doc-row' });
     const cb = div({ className: 'doc-check' + (docData.done ? ' checked' : ''), onClick: async () => {
       const projects = getProjects();
-      const pidx = projects.findIndex(x => x.id === p.id);
+      const pidx = projects.findIndex(x => x.id === S.selectedId);
       if (!projects[pidx].docs) projects[pidx].docs = {};
       const wasDone = projects[pidx].docs[d.id]?.done;
       projects[pidx].docs[d.id] = { ...projects[pidx].docs[d.id], done: !wasDone, doneAt: !wasDone ? new Date().toISOString() : null };
@@ -1193,7 +1193,7 @@ function renderLogTab(wrap, p) {
       if (log.response) content.appendChild(div({ style: { fontSize: 12, color: 'var(--blue)', background: 'var(--blue-bg)', padding: '6px 10px', borderRadius: 6 } }, ['💬 Khách: ' + log.response]));
       content.appendChild(btn({ style: { background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: 11, marginTop: 4 }, onClick: async () => {
         const projects = getProjects();
-        const pidx = projects.findIndex(x => x.id === p.id);
+        const pidx = projects.findIndex(x => x.id === S.selectedId);
         projects[pidx].logs.splice(projects[pidx].logs.length - 1 - i, 1);
         await saveAndSync(projects);
         render();
@@ -1527,7 +1527,7 @@ function renderModal(app) {
         const contractValueBeforeVat = beforeVatInp.value ? Number(beforeVatInp.value) : null;
         const vatRate = Number(vatRateInp.value);
         if (isEdit) {
-          const idx = projects.findIndex(x => x.id === p.id);
+          const idx = projects.findIndex(x => x.id === S.selectedId);
           projects[idx] = { ...projects[idx], name, client: clientInp.value.trim(), contractValue, contractValueBeforeVat, vatRate, deadline: deadlineInp.value || null, notes: notesInp.value.trim() || null };
           if (contractValue && (!projects[idx].payments || !projects[idx].payments.length)) {
             projects[idx].payments = calcPayments(contractValue);
@@ -1706,7 +1706,8 @@ function renderModal(app) {
       btn({ className: 'btn btn-secondary', onClick: () => setState({ modal: null }) }, ['Huỷ']),
       btn({ className: 'btn btn-primary', onClick: async () => {
         const projects = getProjects();
-        const idx = projects.findIndex(x => x.id === p.id);
+        const idx = projects.findIndex(x => x.id === S.selectedId);
+        if (idx === -1) { showToast('❌ Không tìm thấy dự án!'); return; }
         projects[idx].rounds = rounds;
         await saveAndSync(projects);
         setState({ modal: null });
@@ -1743,7 +1744,8 @@ function renderModal(app) {
         const sent = sentInp.value.trim();
         if (!sent) { showToast('❌ Nhập nội dung!'); return; }
         const projects = getProjects();
-        const idx = projects.findIndex(x => x.id === p.id);
+        const idx = projects.findIndex(x => x.id === S.selectedId);
+        if (idx === -1) { showToast('❌ Không tìm thấy dự án!'); return; }
         if (!projects[idx].logs) projects[idx].logs = [];
         const logEntry = { date: dateInp.value, type: typeInp.value, sent, response: responseInp.value.trim() };
         projects[idx].logs.push(logEntry);
@@ -1824,7 +1826,8 @@ function renderModal(app) {
       btn({ className: 'btn btn-secondary', onClick: () => setState({ modal: null }) }, ['Huỷ']),
       btn({ className: 'btn btn-primary', onClick: async () => {
         const projects = getProjects();
-        const idx = projects.findIndex(x => x.id === p.id);
+        const idx = projects.findIndex(x => x.id === S.selectedId);
+        if (idx === -1) { showToast('❌ Không tìm thấy dự án!'); return; }
         projects[idx].payments = payments;
         await saveAndSync(projects);
         setState({ modal: null });
