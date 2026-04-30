@@ -907,56 +907,12 @@ function renderOverviewTab(wrap, p) {
   if (!(p.rounds || []).length) {
     roundsCard.appendChild(div({ style: { color: 'var(--text3)', fontSize: 13 } }, ['Chưa có rounds — bấm "Quản lý" để thêm']));
   } else {
-    // Group rounds by package if multi-package project
-    const hasPkgs = p.servicePackages && p.servicePackages.length > 1;
-    if (hasPkgs) {
-      // Group by pkg field
-      const groups = {};
-      const ungrouped = [];
-      p.rounds.forEach(r => {
-        if (r.pkg) {
-          if (!groups[r.pkg]) groups[r.pkg] = [];
-          groups[r.pkg].push(r);
-        } else {
-          ungrouped.push(r);
-        }
-      });
-      const renderRoundsTimeline = (rounds) => {
-        const timeline = div({ className: 'timeline' });
-        rounds.forEach(r => {
-          const item = div({ className: 'timeline-item' });
-          const left = div({ className: 'timeline-left' });
-          left.appendChild(div({ className: 'timeline-dot' + (r.status !== 'done' && r.status !== 'inprogress' ? ' empty' : '') }));
-          left.appendChild(div({ className: 'timeline-line' }));
-          item.appendChild(left);
-          const content = div({ style: { flex: 1, paddingBottom: 4 } });
-          const rTop = div({ style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 } });
-          const displayLabel = r.label.replace(/^\[.*?\]\s*/, '');
-          rTop.appendChild(div({ style: { fontWeight: 600, fontSize: 13 } }, [displayLabel]));
-          const rStatusMap = { pending: { l: 'Chưa làm', bg: '#f3f4f6', c: '#6b7280' }, inprogress: { l: 'Đang làm', bg: 'var(--yellow-bg)', c: 'var(--yellow)' }, review: { l: 'Chờ duyệt', bg: 'var(--purple-bg)', c: 'var(--purple)' }, done: { l: 'Xong', bg: 'var(--green-bg)', c: 'var(--green)' } };
-          const rs = rStatusMap[r.status] || rStatusMap.pending;
-          rTop.appendChild(span({ style: { fontSize: 11, background: rs.bg, color: rs.c, padding: '2px 8px', borderRadius: 100, fontWeight: 600 } }, [rs.l]));
-          if (r.date) rTop.appendChild(span({ style: { fontSize: 11, color: 'var(--text3)' } }, [fmtDate(r.date)]));
-          content.appendChild(rTop);
-          if (r.note) content.appendChild(div({ style: { fontSize: 12, color: 'var(--text3)', fontStyle: 'italic' } }, [r.note]));
-          if (r.feedback) content.appendChild(div({ style: { fontSize: 12, color: 'var(--blue)', background: 'var(--blue-bg)', padding: '4px 8px', borderRadius: 4, marginTop: 4 } }, ['💬 ' + r.feedback]));
-          item.appendChild(content);
-          timeline.appendChild(item);
-        });
-        return timeline;
-      };
-      p.servicePackages.forEach(pkg => {
-        const pkgName = typeof pkg === 'string' ? pkg : pkg.name;
-        if (!groups[pkgName] || !groups[pkgName].length) return;
-        const pkgSection = div({ style: { marginBottom: 14 } });
-        pkgSection.appendChild(div({ style: { fontSize: 12, fontWeight: 700, color: 'var(--accent)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 4 } }, ['🎨 ' + pkgName]));
-        pkgSection.appendChild(renderRoundsTimeline(groups[pkgName]));
-        roundsCard.appendChild(pkgSection);
-      });
-      if (ungrouped.length) roundsCard.appendChild(renderRoundsTimeline(ungrouped));
-    } else {
+    const hasPkgs = p.servicePackages && p.servicePackages.length >= 1;
+
+    // Shared timeline renderer
+    const renderRoundsTimeline = (rounds) => {
       const timeline = div({ className: 'timeline' });
-      p.rounds.forEach(r => {
+      rounds.forEach(r => {
         const item = div({ className: 'timeline-item' });
         const left = div({ className: 'timeline-left' });
         left.appendChild(div({ className: 'timeline-dot' + (r.status !== 'done' && r.status !== 'inprogress' ? ' empty' : '') }));
@@ -964,7 +920,9 @@ function renderOverviewTab(wrap, p) {
         item.appendChild(left);
         const content = div({ style: { flex: 1, paddingBottom: 4 } });
         const rTop = div({ style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 } });
-        rTop.appendChild(div({ style: { fontWeight: 600, fontSize: 13 } }, [r.label]));
+        // Strip [pkg] prefix for display
+        const displayLabel = r.label.replace(/^\[.*?\]\s*/, '');
+        rTop.appendChild(div({ style: { fontWeight: 600, fontSize: 13 } }, [displayLabel]));
         const rStatusMap = { pending: { l: 'Chưa làm', bg: '#f3f4f6', c: '#6b7280' }, inprogress: { l: 'Đang làm', bg: 'var(--yellow-bg)', c: 'var(--yellow)' }, review: { l: 'Chờ duyệt', bg: 'var(--purple-bg)', c: 'var(--purple)' }, done: { l: 'Xong', bg: 'var(--green-bg)', c: 'var(--green)' } };
         const rs = rStatusMap[r.status] || rStatusMap.pending;
         rTop.appendChild(span({ style: { fontSize: 11, background: rs.bg, color: rs.c, padding: '2px 8px', borderRadius: 100, fontWeight: 600 } }, [rs.l]));
@@ -975,7 +933,65 @@ function renderOverviewTab(wrap, p) {
         item.appendChild(content);
         timeline.appendChild(item);
       });
-      roundsCard.appendChild(timeline);
+      return timeline;
+    };
+
+    if (hasPkgs) {
+      // Migrate old rounds that have no pkg field: assign by position based on roundCount
+      const needsMigration = p.rounds.some(r => !r.pkg && !r.label.match(/^\[/));
+      if (needsMigration) {
+        let idx = 0;
+        p.servicePackages.forEach(pkg => {
+          const pkgName = typeof pkg === 'string' ? pkg : pkg.name;
+          const n = pkg.roundCount || Math.ceil(p.rounds.length / p.servicePackages.length);
+          for (let i = 0; i < n && idx < p.rounds.length; i++, idx++) {
+            if (!p.rounds[idx].pkg) p.rounds[idx].pkg = pkgName;
+          }
+        });
+      }
+      // Normalise pkg name on each round: use r.pkg if set, else try to parse from label "[name] ..."
+      const normalisedRounds = p.rounds.map(r => {
+        let pkgKey = r.pkg || null;
+        if (!pkgKey) {
+          const m = r.label.match(/^\[(.+?)\]/);
+          if (m) pkgKey = m[1];
+        }
+        return { ...r, _pkgKey: pkgKey };
+      });
+
+      // Build a map: pkgName → rounds
+      const groups = {};
+      normalisedRounds.forEach(r => {
+        const key = r._pkgKey || '__ungrouped__';
+        if (!groups[key]) groups[key] = [];
+        groups[key].push(r);
+      });
+
+      // Render in package order
+      p.servicePackages.forEach(pkg => {
+        const pkgName = typeof pkg === 'string' ? pkg : pkg.name;
+        if (!pkgName) return;
+        const pkgRounds = groups[pkgName] || [];
+        const pkgSection = div({ style: { marginBottom: 16 } });
+        pkgSection.appendChild(div({ style: {
+          fontSize: 12, fontWeight: 700, color: 'var(--accent)', marginBottom: 8,
+          paddingBottom: 6, borderBottom: '1px solid var(--border)',
+          display: 'flex', alignItems: 'center', gap: 4,
+        } }, ['🎨 ' + pkgName + (pkgRounds.length ? ` (${pkgRounds.length} rounds)` : '')]));
+        if (pkgRounds.length) {
+          pkgSection.appendChild(renderRoundsTimeline(pkgRounds));
+        } else {
+          pkgSection.appendChild(div({ style: { fontSize: 12, color: 'var(--text3)', fontStyle: 'italic', paddingLeft: 4 } }, ['Chưa có rounds cho hạng mục này — bấm "Quản lý" để thêm']));
+        }
+        roundsCard.appendChild(pkgSection);
+      });
+
+      // Ungrouped rounds (not matched to any package)
+      if (groups['__ungrouped__'] && groups['__ungrouped__'].length) {
+        roundsCard.appendChild(renderRoundsTimeline(groups['__ungrouped__']));
+      }
+    } else {
+      roundsCard.appendChild(renderRoundsTimeline(p.rounds));
     }
   }
   wrap.appendChild(roundsCard);
