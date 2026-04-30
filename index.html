@@ -1560,33 +1560,148 @@ function renderModal(app) {
       div({ className: 'modal-title display' }, ['🎨 Quản lý Rounds']),
       btn({ className: 'modal-close', onClick: () => setState({ modal: null }) }, ['×']),
     ]));
+
     let rounds = JSON.parse(JSON.stringify(p.rounds || []));
+
+    // Migrate: assign pkg by position if missing
+    const pkgs = (p.servicePackages || []);
+    if (pkgs.length) {
+      let idx = 0;
+      pkgs.forEach(pkg => {
+        const pkgName = typeof pkg === 'string' ? pkg : pkg.name;
+        const n = pkg.roundCount || Math.ceil((p.rounds || []).length / pkgs.length);
+        for (let i = 0; i < n && idx < rounds.length; i++, idx++) {
+          if (!rounds[idx].pkg) rounds[idx].pkg = pkgName;
+        }
+      });
+    }
+
     const roundsList = div({});
+
     const renderRoundsList = () => {
       roundsList.innerHTML = '';
-      rounds.forEach((r, i) => {
-        const row = div({ style: { background: 'var(--surface2)', borderRadius: 'var(--r8)', padding: '10px 12px', marginBottom: 8 } });
-        const top = div({ style: { display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 } });
-        const labelInp = inp({ className: 'input', value: r.label, style: { flex: 1, fontSize: 13 }, onInput: e => { rounds[i].label = e.target.value; } });
-        const statusSel = el('select', { className: 'input', style: { width: 130, fontSize: 12 }, onChange: e => { rounds[i].status = e.target.value; } }, [
-          el('option', { value: 'pending',    ...(r.status === 'pending'    ? { selected: '' } : {}) }, ['Chưa làm']),
-          el('option', { value: 'inprogress', ...(r.status === 'inprogress' ? { selected: '' } : {}) }, ['Đang làm']),
-          el('option', { value: 'review',     ...(r.status === 'review'     ? { selected: '' } : {}) }, ['Chờ duyệt']),
-          el('option', { value: 'done',       ...(r.status === 'done'       ? { selected: '' } : {}) }, ['Xong']),
-        ]);
-        const delBtn = btn({ className: 'btn btn-ghost btn-sm', style: { color: 'var(--red)' }, onClick: () => { rounds.splice(i, 1); renderRoundsList(); } }, ['🗑']);
-        top.appendChild(labelInp); top.appendChild(statusSel); top.appendChild(delBtn);
-        row.appendChild(top);
-        const dateInp = inp({ className: 'input', type: 'date', value: r.date || '', style: { marginBottom: 6, fontSize: 12 }, onChange: e => { rounds[i].date = e.target.value; } });
-        const noteInp = inp({ className: 'input', placeholder: 'Ghi chú...', value: r.note || '', style: { marginBottom: 6, fontSize: 12 }, onInput: e => { rounds[i].note = e.target.value; } });
-        const fbInp   = inp({ className: 'input', placeholder: 'Phản hồi của khách...', value: r.feedback || '', style: { fontSize: 12 }, onInput: e => { rounds[i].feedback = e.target.value; } });
-        row.appendChild(dateInp); row.appendChild(noteInp); row.appendChild(fbInp);
-        roundsList.appendChild(row);
-      });
+
+      // If project has packages, render grouped by package
+      if (pkgs.length) {
+        // Build groups
+        const groups = {};
+        rounds.forEach((r, globalIdx) => {
+          let key = r.pkg;
+          if (!key) { const m = r.label.match(/^\[(.+?)\]/); key = m ? m[1] : '__none__'; }
+          if (!groups[key]) groups[key] = [];
+          groups[key].push({ r, globalIdx });
+        });
+
+        pkgs.forEach(pkg => {
+          const pkgName = typeof pkg === 'string' ? pkg : pkg.name;
+          if (!pkgName) return;
+          const pkgRounds = groups[pkgName] || [];
+
+          // Package header
+          const pkgHeader = div({ style: {
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            background: 'var(--accent-bg)', borderRadius: 'var(--r8)',
+            padding: '8px 12px', marginBottom: 6,
+            border: '1px solid var(--accent)',
+          }});
+          pkgHeader.appendChild(div({ style: { fontSize: 13, fontWeight: 700, color: 'var(--accent)' } }, ['🎨 ' + pkgName]));
+          pkgHeader.appendChild(btn({ className: 'btn btn-ghost btn-sm', style: { color: 'var(--accent)', fontSize: 11 }, onClick: () => {
+            const newRound = { label: `Round ${pkgRounds.length + 1}`, status: 'pending', date: null, note: '', feedback: '', pkg: pkgName };
+            rounds.push(newRound);
+            renderRoundsList();
+          }}, ['+ Round']));
+          roundsList.appendChild(pkgHeader);
+
+          if (!pkgRounds.length) {
+            roundsList.appendChild(div({ style: { fontSize: 12, color: 'var(--text3)', fontStyle: 'italic', padding: '6px 12px', marginBottom: 8 } }, ['Chưa có round nào']));
+          }
+
+          pkgRounds.forEach(({ r, globalIdx }) => {
+            const gi = globalIdx; // capture
+            const row = div({ style: { background: 'var(--surface2)', borderRadius: 'var(--r8)', padding: '10px 12px', marginBottom: 6, marginLeft: 8 } });
+
+            // Row header: round name + status + delete
+            const top = div({ style: { display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 } });
+            const labelInp = inp({ className: 'input', value: r.label.replace(/^\[.*?\]\s*/, ''), style: { flex: 1, fontSize: 13, fontWeight: 500 }, onInput: e => { rounds[gi].label = e.target.value; } });
+            const statusSel = el('select', { className: 'input', style: { width: 120, fontSize: 12 }, onChange: e => { rounds[gi].status = e.target.value; } }, [
+              el('option', { value: 'pending',    ...(r.status === 'pending'    ? { selected: '' } : {}) }, ['⬜ Chưa làm']),
+              el('option', { value: 'inprogress', ...(r.status === 'inprogress' ? { selected: '' } : {}) }, ['🟡 Đang làm']),
+              el('option', { value: 'review',     ...(r.status === 'review'     ? { selected: '' } : {}) }, ['🟣 Chờ duyệt']),
+              el('option', { value: 'done',       ...(r.status === 'done'       ? { selected: '' } : {}) }, ['🟢 Xong']),
+            ]);
+            const delBtn = btn({ className: 'btn btn-ghost btn-sm', style: { color: 'var(--red)', flexShrink: 0 }, onClick: () => { rounds.splice(gi, 1); renderRoundsList(); } }, ['🗑']);
+            top.appendChild(labelInp); top.appendChild(statusSel); top.appendChild(delBtn);
+            row.appendChild(top);
+
+            // Date + note + feedback in a compact grid
+            const dateInp = inp({ className: 'input', type: 'date', value: r.date || '', style: { marginBottom: 6, fontSize: 12 }, onChange: e => { rounds[gi].date = e.target.value; } });
+            const noteInp = inp({ className: 'input', placeholder: '📝 Ghi chú...', value: r.note || '', style: { marginBottom: 6, fontSize: 12 }, onInput: e => { rounds[gi].note = e.target.value; } });
+            const fbInp   = inp({ className: 'input', placeholder: '💬 Phản hồi của khách...', value: r.feedback || '', style: { fontSize: 12 }, onInput: e => { rounds[gi].feedback = e.target.value; } });
+            row.appendChild(dateInp); row.appendChild(noteInp); row.appendChild(fbInp);
+            roundsList.appendChild(row);
+          });
+
+          // Spacer between packages
+          roundsList.appendChild(div({ style: { height: 8 } }));
+        });
+
+        // Ungrouped rounds
+        const ungrouped = groups['__none__'] || [];
+        if (ungrouped.length) {
+          roundsList.appendChild(div({ style: { fontSize: 12, fontWeight: 600, color: 'var(--text3)', marginBottom: 6 } }, ['Rounds khác']));
+          ungrouped.forEach(({ r, globalIdx }) => {
+            const gi = globalIdx;
+            const row = div({ style: { background: 'var(--surface2)', borderRadius: 'var(--r8)', padding: '10px 12px', marginBottom: 6 } });
+            const top = div({ style: { display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 } });
+            const labelInp = inp({ className: 'input', value: r.label, style: { flex: 1, fontSize: 13 }, onInput: e => { rounds[gi].label = e.target.value; } });
+            const statusSel = el('select', { className: 'input', style: { width: 120, fontSize: 12 }, onChange: e => { rounds[gi].status = e.target.value; } }, [
+              el('option', { value: 'pending',    ...(r.status === 'pending'    ? { selected: '' } : {}) }, ['⬜ Chưa làm']),
+              el('option', { value: 'inprogress', ...(r.status === 'inprogress' ? { selected: '' } : {}) }, ['🟡 Đang làm']),
+              el('option', { value: 'review',     ...(r.status === 'review'     ? { selected: '' } : {}) }, ['🟣 Chờ duyệt']),
+              el('option', { value: 'done',       ...(r.status === 'done'       ? { selected: '' } : {}) }, ['🟢 Xong']),
+            ]);
+            const delBtn = btn({ className: 'btn btn-ghost btn-sm', style: { color: 'var(--red)' }, onClick: () => { rounds.splice(gi, 1); renderRoundsList(); } }, ['🗑']);
+            top.appendChild(labelInp); top.appendChild(statusSel); top.appendChild(delBtn);
+            row.appendChild(top);
+            roundsList.appendChild(row);
+          });
+        }
+
+      } else {
+        // No packages — flat list
+        rounds.forEach((r, i) => {
+          const row = div({ style: { background: 'var(--surface2)', borderRadius: 'var(--r8)', padding: '10px 12px', marginBottom: 8 } });
+          const top = div({ style: { display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 } });
+          const labelInp = inp({ className: 'input', value: r.label, style: { flex: 1, fontSize: 13 }, onInput: e => { rounds[i].label = e.target.value; } });
+          const statusSel = el('select', { className: 'input', style: { width: 120, fontSize: 12 }, onChange: e => { rounds[i].status = e.target.value; } }, [
+            el('option', { value: 'pending',    ...(r.status === 'pending'    ? { selected: '' } : {}) }, ['⬜ Chưa làm']),
+            el('option', { value: 'inprogress', ...(r.status === 'inprogress' ? { selected: '' } : {}) }, ['🟡 Đang làm']),
+            el('option', { value: 'review',     ...(r.status === 'review'     ? { selected: '' } : {}) }, ['🟣 Chờ duyệt']),
+            el('option', { value: 'done',       ...(r.status === 'done'       ? { selected: '' } : {}) }, ['🟢 Xong']),
+          ]);
+          const delBtn = btn({ className: 'btn btn-ghost btn-sm', style: { color: 'var(--red)' }, onClick: () => { rounds.splice(i, 1); renderRoundsList(); } }, ['🗑']);
+          top.appendChild(labelInp); top.appendChild(statusSel); top.appendChild(delBtn);
+          row.appendChild(top);
+          const dateInp = inp({ className: 'input', type: 'date', value: r.date || '', style: { marginBottom: 6, fontSize: 12 }, onChange: e => { rounds[i].date = e.target.value; } });
+          const noteInp = inp({ className: 'input', placeholder: 'Ghi chú...', value: r.note || '', style: { marginBottom: 6, fontSize: 12 }, onInput: e => { rounds[i].note = e.target.value; } });
+          const fbInp   = inp({ className: 'input', placeholder: 'Phản hồi của khách...', value: r.feedback || '', style: { fontSize: 12 }, onInput: e => { rounds[i].feedback = e.target.value; } });
+          row.appendChild(dateInp); row.appendChild(noteInp); row.appendChild(fbInp);
+          roundsList.appendChild(row);
+        });
+      }
     };
+
     renderRoundsList();
     modal.appendChild(roundsList);
-    modal.appendChild(btn({ className: 'btn btn-secondary btn-sm', style: { marginBottom: 14 }, onClick: () => { rounds.push({ label: 'R' + rounds.length, status: 'pending', date: null, note: '', feedback: '' }); renderRoundsList(); } }, ['+ Thêm round']));
+
+    // Add round button — only show if no packages (packages have their own + button)
+    if (!pkgs.length) {
+      modal.appendChild(btn({ className: 'btn btn-secondary btn-sm', style: { marginBottom: 14 }, onClick: () => {
+        rounds.push({ label: 'Round ' + (rounds.length + 1), status: 'pending', date: null, note: '', feedback: '' });
+        renderRoundsList();
+      }}, ['+ Thêm round']));
+    }
+
     modal.appendChild(div({ style: { display: 'flex', gap: 8, justifyContent: 'flex-end' } }, [
       btn({ className: 'btn btn-secondary', onClick: () => setState({ modal: null }) }, ['Huỷ']),
       btn({ className: 'btn btn-primary', onClick: async () => {
