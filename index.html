@@ -135,6 +135,7 @@ select.input { appearance: none; background-image: url("data:image/svg+xml,%3Csv
 const VERSION = 'Paz Project v2.0';
 const LS_KEY = 'paz_projects';
 const LS_CFG = 'paz_config';
+const LS_MONTHLY = 'paz_monthly';
 
 const PROJECT_STATUS = {
   new:        { label: 'Mới', icon: '🌱', cls: 's-new' },
@@ -142,6 +143,7 @@ const PROJECT_STATUS = {
   review:     { label: 'Chờ duyệt', icon: '👁', cls: 's-review' },
   done:       { label: 'Hoàn thành', icon: '✅', cls: 's-done' },
   cancelled:  { label: 'Huỷ', icon: '❌', cls: 's-cancelled' },
+  archived:   { label: 'Lưu trữ', icon: '📦', cls: 's-cancelled' },
 };
 
 const DOCS = [
@@ -192,6 +194,9 @@ let S = {
   syncStatus: 'idle', // idle | syncing | ok | err
   tgPolling: false,
   tgLog: [],
+  listTab: 'projects', // projects | monthly | archived
+  selectedMonthlyId: null,
+  selectedYM: null,
 };
 
 // ── Data helpers ───────────────────────────────────────────────────────────────
@@ -240,8 +245,39 @@ function getProjectProgress(p) {
   return rounds.length ? Math.round(done / rounds.length * 100) : 0;
 }
 
-function getSelectedProject() {
-  return getProjects().find(p => p.id === S.selectedId) || null;
+function getMonthlyProjects() {
+  try { return JSON.parse(localStorage.getItem(LS_MONTHLY)) || []; }
+  catch { return []; }
+}
+function saveMonthlyProjects(list) {
+  localStorage.setItem(LS_MONTHLY, JSON.stringify(list));
+}
+function genMonthlyId() { return 'mp_' + Date.now(); }
+
+// Get or create a month record for a monthly project
+function getOrCreateMonth(mpId, yearMonth) {
+  const list = getMonthlyProjects();
+  const mp = list.find(x => x.id === mpId);
+  if (!mp) return null;
+  if (!mp.months) mp.months = [];
+  let m = mp.months.find(x => x.ym === yearMonth);
+  if (!m) {
+    m = { ym: yearMonth, status: 'pending', note: '', paid: false, paidAt: null, deliverables: '' };
+    mp.months.push(m);
+    saveMonthlyProjects(list);
+  }
+  return m;
+}
+
+function fmtYearMonth(ym) {
+  // ym = "2025-04"
+  const [y, m] = ym.split('-');
+  const names = ['Tháng 1','Tháng 2','Tháng 3','Tháng 4','Tháng 5','Tháng 6','Tháng 7','Tháng 8','Tháng 9','Tháng 10','Tháng 11','Tháng 12'];
+  return (names[Number(m) - 1] || m) + '/' + y;
+}
+function currentYM() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
 }
 
 // ── Toast ──────────────────────────────────────────────────────────────────────
@@ -298,7 +334,7 @@ async function syncPush() {
         'Content-Type': 'application/json',
         'X-Master-Key': cfg.jsonbinKey,
       },
-      body: JSON.stringify({ projects: getProjects(), sharedCfg, updatedAt: new Date().toISOString() }),
+      body: JSON.stringify({ projects: getProjects(), monthly: getMonthlyProjects(), sharedCfg, updatedAt: new Date().toISOString() }),
     });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     S.syncStatus = 'ok';
@@ -325,6 +361,7 @@ async function syncPull() {
     const remote = data.record;
     if (remote && Array.isArray(remote.projects)) {
       saveProjects(remote.projects);
+      if (Array.isArray(remote.monthly)) saveMonthlyProjects(remote.monthly);
       // Restore shared config (tgToken, tgChatId) to local if not set
       if (remote.sharedCfg) {
         const localCfg = getConfig();
@@ -699,8 +736,8 @@ function render() {
   ]);
   hdr.appendChild(syncWrap);
 
-  if (S.view === 'detail') {
-    hdr.appendChild(btn({ className: 'btn btn-ghost btn-sm', onClick: () => setState({ view: 'list', selectedId: null }) }, ['← Quay lại']));
+  if (S.view === 'detail' || S.view === 'monthly_detail') {
+    hdr.appendChild(btn({ className: 'btn btn-ghost btn-sm', onClick: () => setState({ view: 'list', selectedId: null, selectedMonthlyId: null }) }, ['← Quay lại']));
   }
   hdr.appendChild(btn({ className: 'btn btn-ghost btn-sm', onClick: () => setState({ view: 'settings' }) }, ['⚙']));
   app.appendChild(hdr);
@@ -710,6 +747,7 @@ function render() {
 
   if (S.view === 'list') renderList(content);
   else if (S.view === 'detail') renderDetail(content);
+  else if (S.view === 'monthly_detail') renderMonthlyDetail(content);
   else if (S.view === 'settings') renderSettings(content);
 
   if (S.modal) renderModal(app);
@@ -717,16 +755,19 @@ function render() {
 
 // ── List View ──────────────────────────────────────────────────────────────────
 function renderList(wrap) {
-  const projects = getProjects();
-  const total = projects.length;
-  const active = projects.filter(p => p.status === 'inprogress').length;
-  const totalValue = projects.reduce((s, p) => s + (Number(p.contractValue) || 0), 0);
-  const collected = projects.reduce((s, p) => s + (p.payments || []).filter(x => x.paid).reduce((a, x) => a + (Number(x.amount) || 0), 0), 0);
+  const allProjects = getProjects();
+  const activeProjects = allProjects.filter(p => p.status !== 'archived');
+  const archivedProjects = allProjects.filter(p => p.status === 'archived');
+  const monthlyProjects = getMonthlyProjects();
 
-  const statsGrid = div({ style: { display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10, marginBottom: 20 } });
+  // ── Stats (active projects only) ─────────────────────────────────────────
+  const active = activeProjects.filter(p => p.status === 'inprogress').length;
+  const totalValue = activeProjects.reduce((s, p) => s + (Number(p.contractValue) || 0), 0);
+  const collected = activeProjects.reduce((s, p) => s + (p.payments || []).filter(x => x.paid).reduce((a, x) => a + (Number(x.amount) || 0), 0), 0);
+  const statsGrid = div({ style: { display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10, marginBottom: 16 } });
   [
-    { value: total, label: 'Tổng dự án' },
-    { value: active, label: 'Đang thực hiện' },
+    { value: activeProjects.length, label: 'Dự án' },
+    { value: active, label: 'Đang làm' },
     { value: fmtMoney(totalValue), label: 'Tổng HĐ', small: true },
     { value: fmtMoney(collected), label: 'Đã thu', small: true },
   ].forEach(s => {
@@ -737,41 +778,92 @@ function renderList(wrap) {
   });
   wrap.appendChild(statsGrid);
 
-  const toolbar = div({ style: { display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' } });
-  const searchInp = inp({ className: 'input', placeholder: '🔍 Tìm dự án...', value: S.search, style: { flex: 1, minWidth: 160 }, onInput: e => { S.search = e.target.value; render(); } });
-  toolbar.appendChild(searchInp);
-  toolbar.appendChild(el('select', { className: 'input', style: { width: 150 }, onChange: e => setState({ filterStatus: e.target.value }) }, [
-    el('option', { value: 'all' }, ['Tất cả trạng thái']),
-    ...Object.entries(PROJECT_STATUS).map(([k, v]) => el('option', { value: k, ...(S.filterStatus === k ? { selected: '' } : {}) }, [v.icon + ' ' + v.label])),
-  ]));
-  toolbar.appendChild(btn({ className: 'btn btn-primary', onClick: () => setState({ modal: 'new_project' }) }, ['+ Dự án mới']));
+  // ── Tab switcher ──────────────────────────────────────────────────────────
+  const tabBar = div({ style: { display: 'flex', gap: 4, marginBottom: 16, background: 'var(--surface2)', borderRadius: 'var(--r8)', padding: 4 } });
+  [
+    { id: 'projects', label: '📁 Dự án', count: activeProjects.length },
+    { id: 'monthly',  label: '📅 Hàng tháng', count: monthlyProjects.length },
+    { id: 'archived', label: '📦 Lưu trữ', count: archivedProjects.length },
+  ].forEach(t => {
+    const isActive = S.listTab === t.id;
+    tabBar.appendChild(btn({
+      style: {
+        flex: 1, padding: '7px 4px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: isActive ? 700 : 400,
+        background: isActive ? 'var(--surface)' : 'transparent',
+        color: isActive ? 'var(--text1)' : 'var(--text3)',
+        boxShadow: isActive ? '0 1px 3px rgba(0,0,0,.08)' : 'none',
+      },
+      onClick: () => setState({ listTab: t.id }),
+    }, [t.label + (t.count ? ` (${t.count})` : '')]));
+  });
+  wrap.appendChild(tabBar);
 
-  // Sync button
-  const cfg = getConfig();
-  if (cfg.jsonbinKey && cfg.jsonbinBin) {
-    toolbar.appendChild(btn({ className: 'btn btn-secondary btn-sm', onClick: async () => {
-      const ok = await syncPull();
-      if (ok) { render(); showToast('☁️ Đã tải từ cloud!'); }
-      else showToast('❌ Sync thất bại!');
-    }}, ['☁️ Sync']));
+  // ── Tab: Projects ─────────────────────────────────────────────────────────
+  if (S.listTab === 'projects') {
+    const toolbar = div({ style: { display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' } });
+    const searchInp = inp({ className: 'input', placeholder: '🔍 Tìm dự án...', value: S.search, style: { flex: 1, minWidth: 160 }, onInput: e => { S.search = e.target.value; render(); } });
+    toolbar.appendChild(searchInp);
+    toolbar.appendChild(el('select', { className: 'input', style: { width: 150 }, onChange: e => setState({ filterStatus: e.target.value }) }, [
+      el('option', { value: 'all' }, ['Tất cả trạng thái']),
+      ...Object.entries(PROJECT_STATUS).filter(([k]) => k !== 'archived').map(([k, v]) => el('option', { value: k, ...(S.filterStatus === k ? { selected: '' } : {}) }, [v.icon + ' ' + v.label])),
+    ]));
+    toolbar.appendChild(btn({ className: 'btn btn-primary', onClick: () => setState({ modal: 'new_project' }) }, ['+ Dự án mới']));
+    const cfg = getConfig();
+    if (cfg.jsonbinKey && cfg.jsonbinBin) {
+      toolbar.appendChild(btn({ className: 'btn btn-secondary btn-sm', onClick: async () => {
+        const ok = await syncPull(); if (ok) { render(); showToast('☁️ Đã tải từ cloud!'); } else showToast('❌ Sync thất bại!');
+      }}, ['☁️ Sync']));
+    }
+    wrap.appendChild(toolbar);
+
+    let visible = activeProjects;
+    if (S.filterStatus !== 'all') visible = visible.filter(p => p.status === S.filterStatus);
+    if (S.search) visible = visible.filter(p => (p.name || '').toLowerCase().includes(S.search.toLowerCase()) || (p.client || '').toLowerCase().includes(S.search.toLowerCase()));
+    visible = visible.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+    if (!visible.length) {
+      const empty = div({ className: 'empty' });
+      empty.appendChild(div({ className: 'empty-icon' }, ['📁']));
+      empty.appendChild(div({ className: 'empty-text' }, [activeProjects.length ? 'Không có dự án nào phù hợp' : 'Chưa có dự án nào']));
+      if (!activeProjects.length) empty.appendChild(btn({ className: 'btn btn-primary', onClick: () => setState({ modal: 'new_project' }) }, ['+ Tạo dự án đầu tiên']));
+      wrap.appendChild(empty);
+      return;
+    }
+    visible.forEach(p => renderProjectCard(wrap, p));
   }
-  wrap.appendChild(toolbar);
 
-  let visible = projects;
-  if (S.filterStatus !== 'all') visible = visible.filter(p => p.status === S.filterStatus);
-  if (S.search) visible = visible.filter(p => (p.name || '').toLowerCase().includes(S.search.toLowerCase()) || (p.client || '').toLowerCase().includes(S.search.toLowerCase()));
-  visible = visible.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  // ── Tab: Monthly ──────────────────────────────────────────────────────────
+  else if (S.listTab === 'monthly') {
+    const toolbar = div({ style: { display: 'flex', gap: 8, marginBottom: 16 } });
+    toolbar.appendChild(btn({ className: 'btn btn-primary', onClick: () => setState({ modal: 'new_monthly' }) }, ['+ Dự án tháng mới']));
+    wrap.appendChild(toolbar);
 
-  if (!visible.length) {
-    const empty = div({ className: 'empty' });
-    empty.appendChild(div({ className: 'empty-icon' }, ['📁']));
-    empty.appendChild(div({ className: 'empty-text' }, [projects.length ? 'Không có dự án nào phù hợp' : 'Chưa có dự án nào']));
-    if (!projects.length) empty.appendChild(btn({ className: 'btn btn-primary', onClick: () => setState({ modal: 'new_project' }) }, ['+ Tạo dự án đầu tiên']));
-    wrap.appendChild(empty);
-    return;
+    if (!monthlyProjects.length) {
+      const empty = div({ className: 'empty' });
+      empty.appendChild(div({ className: 'empty-icon' }, ['📅']));
+      empty.appendChild(div({ className: 'empty-text' }, ['Chưa có dự án hàng tháng']));
+      empty.appendChild(div({ style: { fontSize: 12, color: 'var(--text3)', marginTop: 8, textAlign: 'center' } }, ['Dùng cho các dự án lặp lại mỗi tháng\nnhư Social Media, Retainer, v.v.']));
+      wrap.appendChild(empty);
+      return;
+    }
+    monthlyProjects.forEach(mp => renderMonthlyCard(wrap, mp));
   }
 
-  visible.forEach(p => {
+  // ── Tab: Archived ─────────────────────────────────────────────────────────
+  else if (S.listTab === 'archived') {
+    if (!archivedProjects.length) {
+      const empty = div({ className: 'empty' });
+      empty.appendChild(div({ className: 'empty-icon' }, ['📦']));
+      empty.appendChild(div({ className: 'empty-text' }, ['Chưa có dự án nào được lưu trữ']));
+      empty.appendChild(div({ style: { fontSize: 12, color: 'var(--text3)', marginTop: 8, textAlign: 'center' } }, ['Khi dự án hoàn thành, bấm "Archive"\nđể dọn gọn danh sách chính']));
+      wrap.appendChild(empty);
+      return;
+    }
+    archivedProjects.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).forEach(p => renderProjectCard(wrap, p, true));
+  }
+}
+
+function renderProjectCard(wrap, p, isArchived = false) {
     const st = PROJECT_STATUS[p.status] || PROJECT_STATUS.new;
     const progress = getProjectProgress(p);
     const totalPaid = (p.payments || []).filter(x => x.paid).reduce((s, x) => s + (Number(x.amount) || 0), 0);
@@ -816,7 +908,7 @@ function renderList(wrap) {
     progWrap.appendChild(pb);
     card.appendChild(progWrap);
 
-    const bot = div({ style: { display: 'flex', gap: 12, flexWrap: 'wrap' } });
+    const bot = div({ style: { display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' } });
     if (totalAmt) bot.appendChild(span({ style: { fontSize: 12, color: 'var(--text2)' } }, ['💰 ' + fmtMoney(totalAmt)]));
     bot.appendChild(span({ style: { fontSize: 12, color: pctCollected >= 100 ? 'var(--green)' : 'var(--text3)' } }, ['📥 Thu ' + pctCollected + '%']));
     if (p.deadline) {
@@ -824,9 +916,70 @@ function renderList(wrap) {
       const color = daysLeft < 0 ? 'var(--red)' : daysLeft <= 3 ? 'var(--yellow)' : 'var(--text3)';
       bot.appendChild(span({ style: { fontSize: 12, color } }, ['📅 ' + (daysLeft < 0 ? 'Quá hạn ' + Math.abs(daysLeft) + 'n' : 'Còn ' + daysLeft + ' ngày')]));
     }
+    // Archive / unarchive quick button
+    const archiveBtn = btn({
+      className: 'btn btn-ghost btn-sm',
+      style: { marginLeft: 'auto', fontSize: 11, color: 'var(--text3)', padding: '3px 8px' },
+      onClick: async e => {
+        e.stopPropagation();
+        const projects = getProjects();
+        const idx = projects.findIndex(x => x.id === p.id);
+        if (idx === -1) return;
+        projects[idx].status = isArchived ? 'done' : 'archived';
+        await saveAndSync(projects);
+        showToast(isArchived ? '✅ Đã khôi phục dự án' : '📦 Đã lưu trữ dự án');
+        render();
+      },
+    }, [isArchived ? '↩️ Khôi phục' : '📦 Archive']);
+    bot.appendChild(archiveBtn);
     card.appendChild(bot);
     wrap.appendChild(card);
-  });
+}
+
+// ── Monthly Card ───────────────────────────────────────────────────────────────
+function renderMonthlyCard(wrap, mp) {
+  const ym = currentYM();
+  const thisMonth = (mp.months || []).find(m => m.ym === ym);
+  const totalMonths = (mp.months || []).length;
+  const paidMonths = (mp.months || []).filter(m => m.paid).length;
+  const monthlyFee = Number(mp.fee) || 0;
+  const totalCollected = paidMonths * monthlyFee;
+
+  const card = div({ className: 'card', onClick: () => setState({ view: 'monthly_detail', selectedMonthlyId: mp.id, selectedYM: ym }) });
+
+  const top = div({ style: { display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 10 } });
+  const titleWrap = div({ style: { flex: 1, minWidth: 0 } });
+  titleWrap.appendChild(div({ style: { fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 600, marginBottom: 2 } }, [mp.name]));
+  titleWrap.appendChild(div({ style: { fontSize: 12, color: 'var(--text3)' } }, ['👤 ' + (mp.client || 'Chưa có khách')]));
+  top.appendChild(titleWrap);
+
+  const statusColor = thisMonth?.status === 'done' ? 'var(--green)' : thisMonth?.status === 'inprogress' ? 'var(--yellow)' : 'var(--text3)';
+  const statusLabel = thisMonth?.status === 'done' ? '✅ Tháng này xong' : thisMonth?.status === 'inprogress' ? '🟡 Đang làm' : '📍 Chưa bắt đầu';
+  top.appendChild(span({ style: { fontSize: 11, color: statusColor, fontWeight: 600, whiteSpace: 'nowrap' } }, [statusLabel]));
+  card.appendChild(top);
+
+  const mid = div({ style: { display: 'flex', gap: 12, fontSize: 12, color: 'var(--text2)', marginBottom: 10, flexWrap: 'wrap' } });
+  if (monthlyFee) mid.appendChild(span({}, ['💰 ' + fmtMoney(monthlyFee) + '/tháng']));
+  mid.appendChild(span({}, ['📅 ' + totalMonths + ' tháng · ' + paidMonths + ' đã thu']));
+  if (totalCollected) mid.appendChild(span({ style: { color: 'var(--green)' } }, ['📥 ' + fmtMoney(totalCollected)]));
+  card.appendChild(mid);
+
+  // Month pills — last 4 months + current
+  const now = new Date();
+  const monthPills = div({ style: { display: 'flex', gap: 4, flexWrap: 'wrap' } });
+  for (let i = 3; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const mym = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+    const rec = (mp.months || []).find(m => m.ym === mym);
+    const isCurrent = mym === ym;
+    const bg = rec?.status === 'done' ? 'var(--green-bg)' : rec?.status === 'inprogress' ? 'var(--yellow-bg)' : 'var(--surface2)';
+    const color = rec?.status === 'done' ? 'var(--green)' : rec?.status === 'inprogress' ? 'var(--yellow)' : 'var(--text3)';
+    monthPills.appendChild(span({
+      style: { fontSize: 10, padding: '3px 8px', borderRadius: 100, background: bg, color, fontWeight: isCurrent ? 700 : 400, border: isCurrent ? '1.5px solid ' + color : '1px solid transparent' },
+    }, [fmtYearMonth(mym).replace('/20', '/')]));
+  }
+  card.appendChild(monthPills);
+  wrap.appendChild(card);
 }
 
 // ── Detail View ────────────────────────────────────────────────────────────────
@@ -867,7 +1020,7 @@ function renderDetail(wrap) {
     }
     await saveAndSync(projects);
     render();
-  }}, Object.entries(PROJECT_STATUS).map(([k, v]) => el('option', { value: k, ...(p.status === k ? { selected: '' } : {}) }, [v.icon + ' ' + v.label])));
+  }}, Object.entries(PROJECT_STATUS).filter(([k]) => k !== 'archived').map(([k, v]) => el('option', { value: k, ...(p.status === k ? { selected: '' } : {}) }, [v.icon + ' ' + v.label])));
   hTop.appendChild(stSelect);
   hCard.appendChild(hTop);
 
@@ -880,6 +1033,16 @@ function renderDetail(wrap) {
   const actions = div({ style: { display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' } });
   actions.appendChild(btn({ className: 'btn btn-secondary btn-sm', onClick: () => setState({ modal: 'edit_project' }) }, ['✏️ Sửa thông tin']));
   actions.appendChild(btn({ className: 'btn btn-secondary btn-sm', onClick: () => setState({ modal: 'add_log' }) }, ['📝 Thêm nhật ký']));
+  // Archive button
+  const isArchived = p.status === 'archived';
+  actions.appendChild(btn({ className: 'btn btn-secondary btn-sm', style: { color: isArchived ? 'var(--green)' : 'var(--text3)' }, onClick: async () => {
+    const projects = getProjects();
+    const idx = projects.findIndex(x => x.id === S.selectedId);
+    projects[idx].status = isArchived ? 'done' : 'archived';
+    await saveAndSync(projects);
+    showToast(isArchived ? '✅ Đã khôi phục' : '📦 Đã lưu trữ');
+    setState({ view: 'list', listTab: isArchived ? 'archived' : 'projects', selectedId: null });
+  }}, [isArchived ? '↩️ Khôi phục' : '📦 Archive']));
   actions.appendChild(btn({ className: 'btn btn-secondary btn-sm', onClick: () => {
     if (!confirm('Xóa dự án "' + p.name + '"?')) return;
     const projects = getProjects().filter(x => x.id !== p.id);
@@ -1225,6 +1388,100 @@ function renderLogTab(wrap, p) {
 }
 
 // ── Settings View ──────────────────────────────────────────────────────────────
+// ── Monthly Detail View ────────────────────────────────────────────────────────
+function renderMonthlyDetail(wrap) {
+  const list = getMonthlyProjects();
+  const mp = list.find(x => x.id === S.selectedMonthlyId);
+  if (!mp) { setState({ view: 'list' }); return; }
+
+  // Header
+  const hCard = div({ style: { background: 'var(--surface)', borderRadius: 'var(--r16)', border: '1px solid var(--border)', padding: '20px', marginBottom: 16 } });
+  hCard.appendChild(div({ style: { fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 700, marginBottom: 4 } }, [mp.name]));
+  const meta = div({ style: { fontSize: 13, color: 'var(--text2)', display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 14 } });
+  meta.appendChild(span({}, ['👤 ' + (mp.client || '—')]));
+  if (mp.fee) meta.appendChild(span({}, ['💰 ' + fmtMoney(mp.fee) + '/tháng']));
+  if (mp.startYM) meta.appendChild(span({}, ['📅 Từ ' + fmtYearMonth(mp.startYM)]));
+  hCard.appendChild(meta);
+
+  // Actions
+  const actions = div({ style: { display: 'flex', gap: 8 } });
+  actions.appendChild(btn({ className: 'btn btn-secondary btn-sm', onClick: () => setState({ modal: 'edit_monthly', modalData: mp }) }, ['✏️ Sửa']));
+  actions.appendChild(btn({ className: 'btn btn-secondary btn-sm', style: { color: 'var(--red)' }, onClick: async () => {
+    if (!confirm('Xoá dự án tháng này?')) return;
+    const updated = list.filter(x => x.id !== mp.id);
+    saveMonthlyProjects(updated);
+    await syncPush();
+    setState({ view: 'list', listTab: 'monthly', selectedMonthlyId: null });
+    showToast('🗑 Đã xoá');
+  }}, ['🗑 Xoá']));
+  hCard.appendChild(actions);
+  wrap.appendChild(hCard);
+
+  // Month list — from startYM to now, newest first
+  const now = new Date();
+  const months = [];
+  const startDate = mp.startYM ? new Date(mp.startYM + '-01') : new Date(now.getFullYear(), now.getMonth() - 5, 1);
+  for (let d = new Date(now.getFullYear(), now.getMonth(), 1); d >= startDate; d.setMonth(d.getMonth() - 1)) {
+    months.push(d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'));
+  }
+
+  const monthlyFee = Number(mp.fee) || 0;
+  let totalPaid = 0;
+
+  months.forEach(mym => {
+    const rec = (mp.months || []).find(m => m.ym === mym) || { ym: mym, status: 'pending', note: '', paid: false, deliverables: '' };
+    if (rec.paid && monthlyFee) totalPaid += monthlyFee;
+    const isCurrent = mym === currentYM();
+
+    const mCard = div({ style: {
+      background: 'var(--surface)', borderRadius: 'var(--r12)', border: isCurrent ? '2px solid var(--accent)' : '1px solid var(--border)',
+      padding: '14px 16px', marginBottom: 10,
+    }});
+
+    const mTop = div({ style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 } });
+    mTop.appendChild(div({ style: { fontWeight: 700, fontSize: 14, flex: 1 } }, [fmtYearMonth(mym) + (isCurrent ? ' 📌' : '')]));
+
+    // Status badge
+    const statusMap = { pending: { l: '📍 Chưa làm', bg: 'var(--surface2)', c: 'var(--text3)' }, inprogress: { l: '🟡 Đang làm', bg: 'var(--yellow-bg)', c: 'var(--yellow)' }, review: { l: '🟣 Chờ duyệt', bg: 'var(--purple-bg)', c: 'var(--purple)' }, done: { l: '✅ Hoàn thành', bg: 'var(--green-bg)', c: 'var(--green)' } };
+    const sm = statusMap[rec.status] || statusMap.pending;
+    mTop.appendChild(span({ style: { fontSize: 11, background: sm.bg, color: sm.c, padding: '3px 9px', borderRadius: 100, fontWeight: 600 } }, [sm.l]));
+
+    // Payment badge
+    mTop.appendChild(span({ style: { fontSize: 11, background: rec.paid ? 'var(--green-bg)' : 'var(--surface2)', color: rec.paid ? 'var(--green)' : 'var(--text3)', padding: '3px 9px', borderRadius: 100, fontWeight: 600 } }, [rec.paid ? '💰 Đã thu' : '💸 Chưa thu']));
+    mCard.appendChild(mTop);
+
+    if (rec.note) mCard.appendChild(div({ style: { fontSize: 12, color: 'var(--text2)', marginBottom: 6 } }, ['📝 ' + rec.note]));
+    if (rec.deliverables) mCard.appendChild(div({ style: { fontSize: 12, color: 'var(--text2)', marginBottom: 6 } }, ['📤 ' + rec.deliverables]));
+
+    const mActions = div({ style: { display: 'flex', gap: 6 } });
+    mActions.appendChild(btn({ className: 'btn btn-ghost btn-sm', onClick: () => setState({ modal: 'edit_month', modalData: { mp, mym } }) }, ['✏️ Cập nhật']));
+    if (!rec.paid && monthlyFee) {
+      mActions.appendChild(btn({ className: 'btn btn-ghost btn-sm', style: { color: 'var(--green)' }, onClick: async () => {
+        const ml = getMonthlyProjects();
+        const mpi = ml.find(x => x.id === mp.id);
+        if (!mpi.months) mpi.months = [];
+        let mr = mpi.months.find(x => x.ym === mym);
+        if (!mr) { mr = { ym: mym, status: 'done', note: '', paid: false, deliverables: '' }; mpi.months.push(mr); }
+        mr.paid = true; mr.paidAt = today();
+        if (mr.status !== 'done') mr.status = 'done';
+        saveMonthlyProjects(ml);
+        await syncPush();
+        render(); showToast('💰 Đã đánh dấu đã thu!');
+      }}, ['💰 Đánh dấu đã thu']));
+    }
+    mCard.appendChild(mActions);
+    wrap.appendChild(mCard);
+  });
+
+  // Summary
+  const sumCard = div({ style: { background: 'var(--surface)', borderRadius: 'var(--r12)', border: '1px solid var(--border)', padding: 14, marginTop: 4 } });
+  const paidMonths = (mp.months || []).filter(m => m.paid).length;
+  sumCard.appendChild(div({ style: { fontSize: 13, color: 'var(--text2)' } }, [
+    `📊 ${paidMonths} tháng đã thu · ` + (monthlyFee ? fmtMoney(paidMonths * monthlyFee) + ' tổng' : ''),
+  ]));
+  wrap.appendChild(sumCard);
+}
+
 function renderSettings(wrap) {
   const cfg = getConfig();
   wrap.appendChild(div({ style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20 } }, [
@@ -1730,6 +1987,94 @@ function renderModal(app) {
         await saveAndSync(projects);
         setState({ modal: null });
         showToast('✅ Đã cập nhật rounds');
+      }}, ['Lưu']),
+    ]));
+  }
+
+  else if (S.modal === 'new_monthly' || S.modal === 'edit_monthly') {
+    const isEdit = S.modal === 'edit_monthly';
+    const mp = isEdit ? S.modalData : null;
+    modal.appendChild(div({ className: 'modal-header' }, [
+      div({ className: 'modal-title display' }, [isEdit ? 'Sửa dự án tháng' : 'Dự án hàng tháng mới']),
+      btn({ className: 'modal-close', onClick: () => setState({ modal: null, modalData: null }) }, ['×']),
+    ]));
+    const nameInp   = inp({ className: 'input', placeholder: 'Tên dự án (vd: Social Media Café Bình Yên)', value: mp?.name || '' });
+    const clientInp = inp({ className: 'input', placeholder: 'Tên khách hàng', value: mp?.client || '' });
+    const feeInp    = inp({ className: 'input', type: 'number', placeholder: 'Phí hàng tháng (đ)', value: mp?.fee || '' });
+    const startInp  = inp({ className: 'input', type: 'month', value: mp?.startYM || currentYM() });
+    const notesInp  = inp({ className: 'input', placeholder: 'Ghi chú...', value: mp?.notes || '' });
+    modal.appendChild(div({ className: 'field' }, [el('label', { className: 'input-label' }, ['Tên dự án *']), nameInp]));
+    modal.appendChild(div({ className: 'field' }, [el('label', { className: 'input-label' }, ['Khách hàng']), clientInp]));
+    modal.appendChild(div({ className: 'grid-2' }, [
+      div({ className: 'field' }, [el('label', { className: 'input-label' }, ['Phí/tháng (đ)']), feeInp]),
+      div({ className: 'field' }, [el('label', { className: 'input-label' }, ['Bắt đầu từ tháng']), startInp]),
+    ]));
+    modal.appendChild(div({ className: 'field' }, [el('label', { className: 'input-label' }, ['Ghi chú']), notesInp]));
+    modal.appendChild(div({ style: { display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 } }, [
+      btn({ className: 'btn btn-secondary', onClick: () => setState({ modal: null, modalData: null }) }, ['Huỷ']),
+      btn({ className: 'btn btn-primary', onClick: async () => {
+        const name = nameInp.value.trim();
+        if (!name) { showToast('❌ Nhập tên dự án!'); return; }
+        const list = getMonthlyProjects();
+        if (isEdit) {
+          const idx = list.findIndex(x => x.id === mp.id);
+          list[idx] = { ...list[idx], name, client: clientInp.value.trim(), fee: Number(feeInp.value) || 0, startYM: startInp.value, notes: notesInp.value.trim() };
+        } else {
+          list.push({ id: genMonthlyId(), name, client: clientInp.value.trim(), fee: Number(feeInp.value) || 0, startYM: startInp.value, notes: notesInp.value.trim(), months: [], createdAt: new Date().toISOString() });
+        }
+        saveMonthlyProjects(list);
+        await syncPush();
+        setState({ modal: null, modalData: null, listTab: 'monthly', ...(isEdit ? {} : { view: 'monthly_detail', selectedMonthlyId: list[list.length - 1].id }) });
+        showToast(isEdit ? '✅ Đã cập nhật' : '✅ Đã tạo dự án tháng!');
+      }}, [isEdit ? 'Lưu' : 'Tạo']),
+    ]));
+  }
+
+  else if (S.modal === 'edit_month') {
+    const { mp, mym } = S.modalData;
+    const list = getMonthlyProjects();
+    const mpi = list.find(x => x.id === mp.id);
+    if (!mpi.months) mpi.months = [];
+    let rec = mpi.months.find(m => m.ym === mym);
+    if (!rec) { rec = { ym: mym, status: 'pending', note: '', paid: false, deliverables: '' }; mpi.months.push(rec); }
+
+    modal.appendChild(div({ className: 'modal-header' }, [
+      div({ className: 'modal-title display' }, ['📅 ' + fmtYearMonth(mym)]),
+      btn({ className: 'modal-close', onClick: () => setState({ modal: null, modalData: null }) }, ['×']),
+    ]));
+    const statusSel = el('select', { className: 'input', style: { marginBottom: 10 } }, [
+      el('option', { value: 'pending',    ...(rec.status === 'pending'    ? { selected: '' } : {}) }, ['📍 Chưa làm']),
+      el('option', { value: 'inprogress', ...(rec.status === 'inprogress' ? { selected: '' } : {}) }, ['🟡 Đang làm']),
+      el('option', { value: 'review',     ...(rec.status === 'review'     ? { selected: '' } : {}) }, ['🟣 Chờ duyệt']),
+      el('option', { value: 'done',       ...(rec.status === 'done'       ? { selected: '' } : {}) }, ['✅ Hoàn thành']),
+    ]);
+    const noteInp = inp({ className: 'input', placeholder: 'Ghi chú tháng này...', value: rec.note || '' });
+    const delivInp = inp({ className: 'input', placeholder: 'Đã bàn giao gì? (link drive, nội dung...)', value: rec.deliverables || '' });
+    const paidChk = inp({ type: 'checkbox', ...(rec.paid ? { checked: '' } : {}), style: { width: 16, height: 16, cursor: 'pointer' } });
+    const paidRow = div({ style: { display: 'flex', alignItems: 'center', gap: 8, padding: '10px 0' } });
+    paidRow.appendChild(paidChk);
+    paidRow.appendChild(el('label', { style: { fontSize: 13, fontWeight: 500, cursor: 'pointer' } }, ['💰 Đã thu phí tháng ' + fmtYearMonth(mym)]));
+    modal.appendChild(div({ className: 'field' }, [el('label', { className: 'input-label' }, ['Trạng thái']), statusSel]));
+    modal.appendChild(div({ className: 'field' }, [el('label', { className: 'input-label' }, ['Ghi chú']), noteInp]));
+    modal.appendChild(div({ className: 'field' }, [el('label', { className: 'input-label' }, ['Đã bàn giao']), delivInp]));
+    modal.appendChild(paidRow);
+    modal.appendChild(div({ style: { display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 } }, [
+      btn({ className: 'btn btn-secondary', onClick: () => setState({ modal: null, modalData: null }) }, ['Huỷ']),
+      btn({ className: 'btn btn-primary', onClick: async () => {
+        const ml = getMonthlyProjects();
+        const mli = ml.find(x => x.id === mp.id);
+        if (!mli.months) mli.months = [];
+        let mr = mli.months.find(m => m.ym === mym);
+        if (!mr) { mr = { ym: mym }; mli.months.push(mr); }
+        mr.status = statusSel.value;
+        mr.note = noteInp.value.trim();
+        mr.deliverables = delivInp.value.trim();
+        mr.paid = paidChk.checked;
+        if (paidChk.checked && !mr.paidAt) mr.paidAt = today();
+        saveMonthlyProjects(ml);
+        await syncPush();
+        setState({ modal: null, modalData: null });
+        showToast('✅ Đã cập nhật tháng ' + fmtYearMonth(mym));
       }}, ['Lưu']),
     ]));
   }
