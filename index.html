@@ -745,10 +745,19 @@ function render() {
   const content = div({ className: 'content' });
   app.appendChild(content);
 
-  if (S.view === 'list') renderList(content);
-  else if (S.view === 'detail') renderDetail(content);
-  else if (S.view === 'monthly_detail') renderMonthlyDetail(content);
-  else if (S.view === 'settings') renderSettings(content);
+  try {
+    if (S.view === 'list') renderList(content);
+    else if (S.view === 'detail') renderDetail(content);
+    else if (S.view === 'monthly_detail') renderMonthlyDetail(content);
+    else if (S.view === 'settings') renderSettings(content);
+  } catch(err) {
+    content.innerHTML = '';
+    const errBox = div({ style: { padding: 20, color: 'var(--red)', background: 'var(--surface)', borderRadius: 'var(--r12)', border: '1px solid var(--red)', margin: 16, fontFamily: 'monospace', fontSize: 12, whiteSpace: 'pre-wrap' } });
+    errBox.textContent = '❌ Lỗi render:\n' + err.message + '\n\n' + err.stack;
+    content.appendChild(errBox);
+    content.appendChild(btn({ className: 'btn btn-secondary', style: { margin: '0 16px' }, onClick: () => setState({ view: 'list' }) }, ['← Quay lại danh sách']));
+    console.error('Render error:', err);
+  }
 
   if (S.modal) renderModal(app);
 }
@@ -1068,13 +1077,15 @@ function renderDetail(wrap) {
 
 // ── Overview Tab ───────────────────────────────────────────────────────────────
 function renderOverviewTab(wrap, p) {
-  // Show service packages if any
-  if (p.servicePackages && p.servicePackages.length) {
+  // Normalise servicePackages: handle both old string-id format and new {name, roundCount} format
+  const rawPkgs = (p.servicePackages || []);
+  const pkgs = rawPkgs.map(pkg => typeof pkg === 'string' ? { name: pkg, roundCount: null } : pkg).filter(pkg => pkg && pkg.name);
+
+  // Show service packages badges
+  if (pkgs.length) {
     const pkgBadges = div({ style: { display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 } });
-    p.servicePackages.forEach(pkg => {
-      const label = typeof pkg === 'string' ? pkg : pkg.name;
-      if (!label) return;
-      pkgBadges.appendChild(span({ style: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 100, fontSize: 12, fontWeight: 600, background: 'var(--accent-bg)', color: 'var(--accent)', border: '1px solid var(--accent)' } }, ['🎨 ' + label]));
+    pkgs.forEach(pkg => {
+      pkgBadges.appendChild(span({ style: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 100, fontSize: 12, fontWeight: 600, background: 'var(--accent-bg)', color: 'var(--accent)', border: '1px solid var(--accent)' } }, ['🎨 ' + pkg.name]));
     });
     wrap.appendChild(pkgBadges);
   }
@@ -1088,12 +1099,13 @@ function renderOverviewTab(wrap, p) {
   if (!(p.rounds || []).length) {
     roundsCard.appendChild(div({ style: { color: 'var(--text3)', fontSize: 13 } }, ['Chưa có rounds — bấm "Quản lý" để thêm']));
   } else {
-    const hasPkgs = p.servicePackages && p.servicePackages.length >= 1;
+    const hasPkgs = pkgs.length >= 1;
 
     // Shared timeline renderer
     const renderRoundsTimeline = (rounds) => {
       const timeline = div({ className: 'timeline' });
-      rounds.forEach(r => {
+      (rounds || []).forEach(r => {
+        if (!r) return;
         const item = div({ className: 'timeline-item' });
         const left = div({ className: 'timeline-left' });
         left.appendChild(div({ className: 'timeline-dot' + (r.status !== 'done' && r.status !== 'inprogress' ? ' empty' : '') }));
@@ -1122,23 +1134,23 @@ function renderOverviewTab(wrap, p) {
       const needsMigration = p.rounds.some(r => !r.pkg && !r.label.match(/^\[/));
       if (needsMigration) {
         let idx = 0;
-        p.servicePackages.forEach(pkg => {
-          const pkgName = typeof pkg === 'string' ? pkg : pkg.name;
-          const n = pkg.roundCount || Math.ceil(p.rounds.length / p.servicePackages.length);
+        pkgs.forEach(pkg => {
+          const n = pkg.roundCount || Math.ceil(p.rounds.length / pkgs.length);
           for (let i = 0; i < n && idx < p.rounds.length; i++, idx++) {
-            if (!p.rounds[idx].pkg) p.rounds[idx].pkg = pkgName;
+            if (!p.rounds[idx].pkg) p.rounds[idx].pkg = pkg.name;
           }
         });
       }
       // Normalise pkg name on each round: use r.pkg if set, else try to parse from label "[name] ..."
       const normalisedRounds = p.rounds.map(r => {
+        if (!r) return null;
         let pkgKey = r.pkg || null;
         if (!pkgKey) {
-          const m = r.label.match(/^\[(.+?)\]/);
+          const m = r.label && r.label.match(/^\[(.+?)\]/);
           if (m) pkgKey = m[1];
         }
         return { ...r, _pkgKey: pkgKey };
-      });
+      }).filter(Boolean);
 
       // Build a map: pkgName → rounds
       const groups = {};
@@ -1149,8 +1161,9 @@ function renderOverviewTab(wrap, p) {
       });
 
       // Render in package order
-      p.servicePackages.forEach(pkg => {
-        const pkgName = typeof pkg === 'string' ? pkg : pkg.name;
+      pkgs.forEach(pkg => {
+        if (!pkg || !pkg.name) return;
+        const pkgName = pkg.name;
         if (!pkgName) return;
         const pkgRounds = groups[pkgName] || [];
         const pkgSection = div({ style: { marginBottom: 16 } });
@@ -1838,15 +1851,18 @@ function renderModal(app) {
 
     let rounds = JSON.parse(JSON.stringify(p.rounds || []));
 
+    // Normalise servicePackages
+    const pkgs = (p.servicePackages || [])
+      .map(pkg => typeof pkg === 'string' ? { name: pkg, roundCount: null } : pkg)
+      .filter(pkg => pkg && pkg.name);
+
     // Migrate: assign pkg by position if missing
-    const pkgs = (p.servicePackages || []);
     if (pkgs.length) {
       let idx = 0;
       pkgs.forEach(pkg => {
-        const pkgName = typeof pkg === 'string' ? pkg : pkg.name;
         const n = pkg.roundCount || Math.ceil((p.rounds || []).length / pkgs.length);
         for (let i = 0; i < n && idx < rounds.length; i++, idx++) {
-          if (!rounds[idx].pkg) rounds[idx].pkg = pkgName;
+          if (!rounds[idx].pkg) rounds[idx].pkg = pkg.name;
         }
       });
     }
