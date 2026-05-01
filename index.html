@@ -777,7 +777,25 @@ function renderList(wrap) {
     const totalPaid = (p.payments || []).filter(x => x.paid).reduce((s, x) => s + (Number(x.amount) || 0), 0);
     const totalAmt = Number(p.contractValue) || 0;
     const pctCollected = totalAmt ? Math.round(totalPaid / totalAmt * 100) : 0;
-    const currentRound = (p.rounds || []).find(r => r.status === 'inprogress') || (p.rounds || []).slice().reverse().find(r => r.status === 'done');
+    // Ưu tiên: đang làm > chờ duyệt > pending tiếp theo sau round done cuối > chưa bắt đầu
+    const rounds = p.rounds || [];
+    const activeRound = rounds.find(r => r.status === 'inprogress')
+      || rounds.find(r => r.status === 'review')
+      || (() => { const lastDoneIdx = rounds.map(r => r.status).lastIndexOf('done'); return rounds[lastDoneIdx + 1]; })()
+      || rounds.find(r => r.status === 'pending');
+    const fmtRoundLabel = r => {
+      if (!r) return 'Chưa bắt đầu';
+      // Strip [Pkg] prefix, show "Tên pkg · Round X" instead
+      const m = r.label.match(/^\[(.+?)\]\s*(.+)$/);
+      if (m) return m[1] + ' · ' + m[2];
+      return r.label;
+    };
+    const roundStatusIcon = r => {
+      if (!r) return '📍';
+      if (r.status === 'inprogress') return '🟡';
+      if (r.status === 'review') return '🟣';
+      return '📍';
+    };
 
     const card = div({ className: 'card', onClick: () => setState({ view: 'detail', selectedId: p.id, tab: 'overview' }) });
     const top = div({ style: { display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 10 } });
@@ -790,7 +808,7 @@ function renderList(wrap) {
 
     const progWrap = div({ style: { marginBottom: 10 } });
     progWrap.appendChild(div({ style: { display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text3)', marginBottom: 4 } }, [
-      span({}, [currentRound ? '📍 ' + currentRound.label : '📍 Chưa bắt đầu']),
+      span({}, [roundStatusIcon(activeRound) + ' ' + fmtRoundLabel(activeRound)]),
       span({}, [progress + '% hoàn thành']),
     ]));
     const pb = div({ className: 'progress-wrap' });
