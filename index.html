@@ -254,6 +254,10 @@ function saveMonthlyProjects(list) {
 }
 function genMonthlyId() { return 'mp_' + Date.now(); }
 
+function getSelectedProject() {
+  return getProjects().find(p => p.id === S.selectedId) || null;
+}
+
 // Get or create a month record for a monthly project
 function getOrCreateMonth(mpId, yearMonth) {
   const list = getMonthlyProjects();
