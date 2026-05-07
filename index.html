@@ -1241,15 +1241,54 @@ function renderOverviewTab(wrap, p) {
         content.appendChild(rTop);
         if (r.note) content.appendChild(div({ style: { fontSize: 12, color: 'var(--text3)', fontStyle: 'italic' } }, [r.note]));
         if (r.feedback) content.appendChild(div({ style: { fontSize: 12, color: 'var(--blue)', background: 'var(--blue-bg)', padding: '4px 8px', borderRadius: 4, marginTop: 4 } }, ['💬 ' + r.feedback]));
-        // Links
-        if (r.links && r.links.length) {
-          const linksRow = div({ style: { display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 5 } });
-          r.links.forEach(lnk => {
-            if (!lnk.url) return;
-            linksRow.appendChild(el('a', { href: lnk.url, target: '_blank', style: { fontSize: 11, color: 'var(--blue)', background: 'var(--blue-bg)', padding: '2px 8px', borderRadius: 4, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 3 } }, ['🔗 ' + (lnk.label || 'Link')]));
-          });
-          content.appendChild(linksRow);
-        }
+
+        // Links row — always visible, with inline add
+        const linksRow = div({ style: { display: 'flex', gap: 5, flexWrap: 'wrap', alignItems: 'center', marginTop: 6 } });
+        (r.links || []).forEach(lnk => {
+          if (!lnk.url) return;
+          linksRow.appendChild(el('a', {
+            href: lnk.url, target: '_blank',
+            style: { fontSize: 11, color: 'var(--blue)', background: 'var(--blue-bg)', padding: '2px 9px', borderRadius: 4, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 3, border: '1px solid var(--blue-bg)' },
+          }, ['🔗 ' + (lnk.label || 'Link')]));
+        });
+
+        // Inline quick-add link button
+        const addLinkBtn = btn({
+          style: { fontSize: 11, padding: '2px 8px', borderRadius: 4, background: 'none', border: '1px dashed var(--border)', color: 'var(--text3)', cursor: 'pointer' },
+          onClick: e => {
+            e.stopPropagation();
+            addLinkBtn.style.display = 'none';
+            const addForm = div({ style: { display: 'flex', gap: 5, alignItems: 'center', flexWrap: 'wrap', marginTop: 4 } });
+            const labelI = inp({ className: 'input', placeholder: 'Tên file...', style: { width: 110, fontSize: 11 } });
+            const urlI   = inp({ className: 'input', placeholder: 'https://...', style: { flex: 1, minWidth: 140, fontSize: 11 } });
+            const saveI  = btn({ style: { fontSize: 11, padding: '3px 10px', borderRadius: 4, background: 'var(--accent)', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 600 },
+              onClick: async () => {
+                const url = urlI.value.trim();
+                if (!url) { addForm.remove(); addLinkBtn.style.display = ''; return; }
+                const projects = getProjects();
+                const pidx = projects.findIndex(x => x.id === S.selectedId);
+                if (pidx === -1) return;
+                const rIdx = projects[pidx].rounds.indexOf(r);
+                // find by label+pkg match if indexOf fails
+                const rIdxFallback = projects[pidx].rounds.findIndex(x => x.label === r.label && x.pkg === r.pkg);
+                const ri = rIdx !== -1 ? rIdx : rIdxFallback;
+                if (ri === -1) return;
+                if (!projects[pidx].rounds[ri].links) projects[pidx].rounds[ri].links = [];
+                projects[pidx].rounds[ri].links.push({ label: labelI.value.trim() || 'Link', url });
+                await saveAndSync(projects);
+                render();
+              },
+            }, ['Lưu']);
+            const cancelI = btn({ style: { fontSize: 11, padding: '3px 8px', borderRadius: 4, background: 'none', border: '1px solid var(--border)', color: 'var(--text3)', cursor: 'pointer' },
+              onClick: () => { addForm.remove(); addLinkBtn.style.display = ''; },
+            }, ['✕']);
+            addForm.appendChild(labelI); addForm.appendChild(urlI); addForm.appendChild(saveI); addForm.appendChild(cancelI);
+            linksRow.appendChild(addForm);
+            urlI.focus();
+          },
+        }, ['+ Link']);
+        linksRow.appendChild(addLinkBtn);
+        content.appendChild(linksRow);
         item.appendChild(content);
         timeline.appendChild(item);
       });
