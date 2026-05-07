@@ -198,6 +198,7 @@ let S = {
   listTab: 'projects', // projects | monthly | archived
   selectedMonthlyId: null,
   selectedYM: null,
+  monthlyTab: 'months',
 };
 
 // ── Data helpers ───────────────────────────────────────────────────────────────
@@ -1063,7 +1064,7 @@ function renderMonthlyCard(wrap, mp) {
   const monthlyFee = Number(mp.fee) || 0;
   const totalCollected = paidMonths * monthlyFee;
 
-  const card = div({ className: 'card', onClick: () => setState({ view: 'monthly_detail', selectedMonthlyId: mp.id, selectedYM: ym }) });
+  const card = div({ className: 'card', onClick: () => setState({ view: 'monthly_detail', selectedMonthlyId: mp.id, selectedYM: ym, monthlyTab: 'months' }) });
 
   const top = div({ style: { display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 10 } });
   const titleWrap = div({ style: { flex: 1, minWidth: 0 } });
@@ -1071,8 +1072,8 @@ function renderMonthlyCard(wrap, mp) {
   titleWrap.appendChild(div({ style: { fontSize: 12, color: 'var(--text3)' } }, ['👤 ' + (mp.client || 'Chưa có khách')]));
   top.appendChild(titleWrap);
 
-  const statusColor = thisMonth?.status === 'done' ? 'var(--green)' : thisMonth?.status === 'inprogress' ? 'var(--yellow)' : 'var(--text3)';
-  const statusLabel = thisMonth?.status === 'done' ? '✅ Tháng này xong' : thisMonth?.status === 'inprogress' ? '🟡 Đang làm' : '📍 Chưa bắt đầu';
+  const statusColor = mp.stoppedYM ? 'var(--red)' : (thisMonth?.status === 'done' ? 'var(--green)' : thisMonth?.status === 'inprogress' ? 'var(--yellow)' : 'var(--text3)');
+  const statusLabel = mp.stoppedYM ? '🛑 Đã dừng' : (thisMonth?.status === 'done' ? '✅ Tháng này xong' : thisMonth?.status === 'inprogress' ? '🟡 Đang làm' : '📍 Chưa bắt đầu');
   top.appendChild(span({ style: { fontSize: 11, color: statusColor, fontWeight: 600, whiteSpace: 'nowrap' } }, [statusLabel]));
   card.appendChild(top);
 
@@ -1516,92 +1517,184 @@ function renderMonthlyDetail(wrap) {
   const mp = list.find(x => x.id === S.selectedMonthlyId);
   if (!mp) { setState({ view: 'list' }); return; }
 
-  // Header
+  const monthlyFee = Number(mp.fee) || 0;
+  const isStopped = !!mp.stoppedYM;
+  const stopDate = mp.stoppedYM ? new Date(mp.stoppedYM + '-01') : null;
+
+  // ── Header card ─────────────────────────────────────────────────────────────
   const hCard = div({ style: { background: 'var(--surface)', borderRadius: 'var(--r16)', border: '1px solid var(--border)', padding: '20px', marginBottom: 16 } });
-  hCard.appendChild(div({ style: { fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 700, marginBottom: 4 } }, [mp.name]));
-  const meta = div({ style: { fontSize: 13, color: 'var(--text2)', display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 14 } });
+
+  const hTop = div({ style: { display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 10 } });
+  const hInfo = div({ style: { flex: 1 } });
+  hInfo.appendChild(div({ style: { fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 700, marginBottom: 4 } }, [mp.name]));
+
+  const meta = div({ style: { fontSize: 13, color: 'var(--text2)', display: 'flex', gap: 12, flexWrap: 'wrap' } });
   meta.appendChild(span({}, ['👤 ' + (mp.client || '—')]));
   if (mp.fee) meta.appendChild(span({}, ['💰 ' + fmtMoney(mp.fee) + '/tháng']));
   if (mp.startYM) meta.appendChild(span({}, ['📅 Từ ' + fmtYearMonth(mp.startYM)]));
-  hCard.appendChild(meta);
+  if (isStopped) meta.appendChild(span({ style: { color: 'var(--red)', fontWeight: 600 } }, ['🛑 Dừng từ ' + fmtYearMonth(mp.stoppedYM)]));
+  hInfo.appendChild(meta);
+  hTop.appendChild(hInfo);
+
+  // Stopped badge
+  if (isStopped) hTop.appendChild(span({ style: { fontSize: 11, background: 'var(--red-bg,#fee2e2)', color: 'var(--red)', padding: '4px 10px', borderRadius: 100, fontWeight: 700, whiteSpace: 'nowrap' } }, ['🛑 Đã dừng']));
+  hCard.appendChild(hTop);
+
+  // Summary row
+  const paidMonths = (mp.months || []).filter(m => m.paid).length;
+  const unpaidMonths = (mp.months || []).filter(m => !m.paid && m.status === 'done').length;
+  const sumRow = div({ style: { display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: 14, background: 'var(--surface2)', borderRadius: 'var(--r8)', padding: '10px 12px' } });
+  [
+    { label: 'Đã thu', value: paidMonths + ' tháng', color: 'var(--green)' },
+    { label: 'Còn nợ', value: unpaidMonths + ' tháng', color: unpaidMonths ? 'var(--red)' : 'var(--text3)' },
+    { label: 'Tổng thu', value: monthlyFee ? fmtMoney(paidMonths * monthlyFee) : '—', color: 'var(--text1)' },
+  ].forEach(s => {
+    const c = div({ style: { textAlign: 'center' } });
+    c.appendChild(div({ style: { fontWeight: 700, fontSize: 14, color: s.color, fontFamily: 'var(--font-display)' } }, [s.value]));
+    c.appendChild(div({ style: { fontSize: 11, color: 'var(--text3)', marginTop: 2 } }, [s.label]));
+    sumRow.appendChild(c);
+  });
+  hCard.appendChild(sumRow);
 
   // Actions
-  const actions = div({ style: { display: 'flex', gap: 8 } });
+  const actions = div({ style: { display: 'flex', gap: 8, flexWrap: 'wrap' } });
   actions.appendChild(btn({ className: 'btn btn-secondary btn-sm', onClick: () => setState({ modal: 'edit_monthly', modalData: mp }) }, ['✏️ Sửa']));
+
+  // Payment reminder button
+  if (monthlyFee) {
+    const unpaidList = (mp.months || []).filter(m => !m.paid && m.status === 'done');
+    actions.appendChild(btn({
+      className: 'btn btn-secondary btn-sm',
+      style: { color: unpaidList.length ? 'var(--accent)' : 'var(--text3)' },
+      onClick: async () => {
+        const unpaid = (getMonthlyProjects().find(x => x.id === mp.id)?.months || []).filter(m => !m.paid && m.status === 'done');
+        if (!unpaid.length) { showToast('✅ Không có tháng nào còn nợ!'); return; }
+        const monthNames = unpaid.map(m => fmtYearMonth(m.ym)).join(', ');
+        const totalDebt = unpaid.length * monthlyFee;
+        const msg = `💸 <b>Nhắc thanh toán — ${mp.name}</b>\n\nKhách hàng: ${mp.client || '—'}\nCác tháng chưa thanh toán: ${monthNames}\nTổng nợ: <b>${fmtMoney(totalDebt)}</b>\n\nVui lòng thanh toán để tiếp tục dịch vụ. Cảm ơn! 🙏`;
+        await tgNotify(msg);
+        showToast('📨 Đã gửi nhắc qua Telegram!');
+      },
+    }, ['📨 Nhắc thanh toán' + (unpaidMonths ? ` (${unpaidMonths})` : '')]));
+  }
+
+  // Stop / resume button
+  actions.appendChild(btn({
+    className: 'btn btn-secondary btn-sm',
+    style: { color: isStopped ? 'var(--green)' : 'var(--red)' },
+    onClick: () => setState({ modal: isStopped ? 'resume_monthly' : 'stop_monthly', modalData: mp }),
+  }, [isStopped ? '▶️ Tiếp tục dự án' : '🛑 Dừng dự án']));
+
   actions.appendChild(btn({ className: 'btn btn-secondary btn-sm', style: { color: 'var(--red)' }, onClick: async () => {
     if (!confirm('Xoá dự án tháng này?')) return;
-    const updated = list.filter(x => x.id !== mp.id);
-    saveMonthlyProjects(updated);
+    saveMonthlyProjects(list.filter(x => x.id !== mp.id));
     await syncPush();
     setState({ view: 'list', listTab: 'monthly', selectedMonthlyId: null });
     showToast('🗑 Đã xoá');
-  }}, ['🗑 Xoá']));
+  }}, ['🗑']));
   hCard.appendChild(actions);
   wrap.appendChild(hCard);
 
-  // Month list — from startYM to now, newest first
-  const now = new Date();
-  const months = [];
-  const startDate = mp.startYM ? new Date(mp.startYM + '-01') : new Date(now.getFullYear(), now.getMonth() - 5, 1);
-  for (let d = new Date(now.getFullYear(), now.getMonth(), 1); d >= startDate; d.setMonth(d.getMonth() - 1)) {
-    months.push(d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'));
+  // ── Tabs ─────────────────────────────────────────────────────────────────────
+  const mTab = S.monthlyTab || 'months';
+  const tabs = div({ className: 'tabs', style: { marginBottom: 14 } });
+  [['months','📅 Theo tháng'], ['docs','📂 Hồ sơ']].forEach(([id, label]) => {
+    tabs.appendChild(btn({ className: 'tab' + (mTab === id ? ' active' : ''), onClick: () => { S.monthlyTab = id; render(); } }, [label]));
+  });
+  wrap.appendChild(tabs);
+
+  // ── Tab: Months ──────────────────────────────────────────────────────────────
+  if (mTab === 'months') {
+    const now = new Date();
+    const endDate = stopDate || now;
+    const startDate = mp.startYM ? new Date(mp.startYM + '-01') : new Date(now.getFullYear(), now.getMonth() - 5, 1);
+    const months = [];
+    for (let d = new Date(endDate.getFullYear(), endDate.getMonth(), 1); d >= startDate; d.setMonth(d.getMonth() - 1)) {
+      months.push(d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'));
+    }
+
+    months.forEach(mym => {
+      const rec = (mp.months || []).find(m => m.ym === mym) || { ym: mym, status: 'pending', note: '', paid: false, deliverables: '' };
+      const isCurrent = mym === currentYM();
+      const isOverdue = !rec.paid && rec.status === 'done'; // done but unpaid
+
+      const mCard = div({ style: {
+        background: isOverdue ? 'var(--red-bg,#fff5f5)' : 'var(--surface)',
+        borderRadius: 'var(--r12)',
+        border: isCurrent ? '2px solid var(--accent)' : isOverdue ? '1px solid var(--red)' : '1px solid var(--border)',
+        padding: '14px 16px', marginBottom: 10,
+      }});
+
+      const mTop = div({ style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 } });
+      mTop.appendChild(div({ style: { fontWeight: 700, fontSize: 14, flex: 1 } }, [fmtYearMonth(mym) + (isCurrent ? ' 📌' : '')]));
+
+      const statusMap = { pending: { l: '📍 Chưa làm', bg: 'var(--surface2)', c: 'var(--text3)' }, inprogress: { l: '🟡 Đang làm', bg: 'var(--yellow-bg)', c: 'var(--yellow)' }, review: { l: '🟣 Chờ duyệt', bg: 'var(--purple-bg)', c: 'var(--purple)' }, done: { l: '✅ Xong', bg: 'var(--green-bg)', c: 'var(--green)' } };
+      const sm = statusMap[rec.status] || statusMap.pending;
+      mTop.appendChild(span({ style: { fontSize: 11, background: sm.bg, color: sm.c, padding: '3px 9px', borderRadius: 100, fontWeight: 600 } }, [sm.l]));
+      mTop.appendChild(span({ style: { fontSize: 11, background: rec.paid ? 'var(--green-bg)' : 'var(--surface2)', color: rec.paid ? 'var(--green)' : isOverdue ? 'var(--red)' : 'var(--text3)', padding: '3px 9px', borderRadius: 100, fontWeight: 600 } }, [rec.paid ? '💰 Đã thu' : isOverdue ? '🔴 Nợ' : '💸 Chưa thu']));
+      mCard.appendChild(mTop);
+
+      if (rec.note) mCard.appendChild(div({ style: { fontSize: 12, color: 'var(--text2)', marginBottom: 6 } }, ['📝 ' + rec.note]));
+      if (rec.deliverables) mCard.appendChild(div({ style: { fontSize: 12, color: 'var(--blue)', marginBottom: 6 } }, ['📤 ' + rec.deliverables]));
+
+      const mBtns = div({ style: { display: 'flex', gap: 6, flexWrap: 'wrap' } });
+      mBtns.appendChild(btn({ className: 'btn btn-ghost btn-sm', onClick: () => setState({ modal: 'edit_month', modalData: { mp, mym } }) }, ['✏️ Cập nhật']));
+      if (!rec.paid && monthlyFee) {
+        mBtns.appendChild(btn({ className: 'btn btn-ghost btn-sm', style: { color: 'var(--green)' }, onClick: async () => {
+          const ml = getMonthlyProjects();
+          const mpi = ml.find(x => x.id === mp.id);
+          if (!mpi.months) mpi.months = [];
+          let mr = mpi.months.find(x => x.ym === mym);
+          if (!mr) { mr = { ym: mym, status: 'done', note: '', paid: false, deliverables: '' }; mpi.months.push(mr); }
+          mr.paid = true; mr.paidAt = today();
+          if (mr.status !== 'done') mr.status = 'done';
+          saveMonthlyProjects(ml);
+          await syncPush();
+          render(); showToast('💰 Đã đánh dấu đã thu!');
+        }}, ['💰 Thu tiền']));
+      }
+      mCard.appendChild(mBtns);
+      wrap.appendChild(mCard);
+    });
   }
 
-  const monthlyFee = Number(mp.fee) || 0;
-  let totalPaid = 0;
+  // ── Tab: Docs ────────────────────────────────────────────────────────────────
+  else if (mTab === 'docs') {
+    const docsCard = div({ style: { background: 'var(--surface)', borderRadius: 'var(--r12)', border: '1px solid var(--border)', padding: 16 } });
+    docsCard.appendChild(div({ className: 'section-title', style: { marginBottom: 14 } }, ['📂 Hồ sơ & Hợp đồng']));
 
-  months.forEach(mym => {
-    const rec = (mp.months || []).find(m => m.ym === mym) || { ym: mym, status: 'pending', note: '', paid: false, deliverables: '' };
-    if (rec.paid && monthlyFee) totalPaid += monthlyFee;
-    const isCurrent = mym === currentYM();
-
-    const mCard = div({ style: {
-      background: 'var(--surface)', borderRadius: 'var(--r12)', border: isCurrent ? '2px solid var(--accent)' : '1px solid var(--border)',
-      padding: '14px 16px', marginBottom: 10,
-    }});
-
-    const mTop = div({ style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 } });
-    mTop.appendChild(div({ style: { fontWeight: 700, fontSize: 14, flex: 1 } }, [fmtYearMonth(mym) + (isCurrent ? ' 📌' : '')]));
-
-    // Status badge
-    const statusMap = { pending: { l: '📍 Chưa làm', bg: 'var(--surface2)', c: 'var(--text3)' }, inprogress: { l: '🟡 Đang làm', bg: 'var(--yellow-bg)', c: 'var(--yellow)' }, review: { l: '🟣 Chờ duyệt', bg: 'var(--purple-bg)', c: 'var(--purple)' }, done: { l: '✅ Hoàn thành', bg: 'var(--green-bg)', c: 'var(--green)' } };
-    const sm = statusMap[rec.status] || statusMap.pending;
-    mTop.appendChild(span({ style: { fontSize: 11, background: sm.bg, color: sm.c, padding: '3px 9px', borderRadius: 100, fontWeight: 600 } }, [sm.l]));
-
-    // Payment badge
-    mTop.appendChild(span({ style: { fontSize: 11, background: rec.paid ? 'var(--green-bg)' : 'var(--surface2)', color: rec.paid ? 'var(--green)' : 'var(--text3)', padding: '3px 9px', borderRadius: 100, fontWeight: 600 } }, [rec.paid ? '💰 Đã thu' : '💸 Chưa thu']));
-    mCard.appendChild(mTop);
-
-    if (rec.note) mCard.appendChild(div({ style: { fontSize: 12, color: 'var(--text2)', marginBottom: 6 } }, ['📝 ' + rec.note]));
-    if (rec.deliverables) mCard.appendChild(div({ style: { fontSize: 12, color: 'var(--text2)', marginBottom: 6 } }, ['📤 ' + rec.deliverables]));
-
-    const mActions = div({ style: { display: 'flex', gap: 6 } });
-    mActions.appendChild(btn({ className: 'btn btn-ghost btn-sm', onClick: () => setState({ modal: 'edit_month', modalData: { mp, mym } }) }, ['✏️ Cập nhật']));
-    if (!rec.paid && monthlyFee) {
-      mActions.appendChild(btn({ className: 'btn btn-ghost btn-sm', style: { color: 'var(--green)' }, onClick: async () => {
+    const mpDocs = mp.docs || {};
+    DOCS.forEach(d => {
+      const docData = mpDocs[d.id] || {};
+      const row = div({ className: 'doc-row' });
+      const cb = div({ className: 'doc-check' + (docData.done ? ' checked' : ''), onClick: async () => {
         const ml = getMonthlyProjects();
         const mpi = ml.find(x => x.id === mp.id);
-        if (!mpi.months) mpi.months = [];
-        let mr = mpi.months.find(x => x.ym === mym);
-        if (!mr) { mr = { ym: mym, status: 'done', note: '', paid: false, deliverables: '' }; mpi.months.push(mr); }
-        mr.paid = true; mr.paidAt = today();
-        if (mr.status !== 'done') mr.status = 'done';
+        if (!mpi.docs) mpi.docs = {};
+        const wasDone = mpi.docs[d.id]?.done;
+        mpi.docs[d.id] = { ...mpi.docs[d.id], done: !wasDone, doneAt: !wasDone ? new Date().toISOString() : null };
         saveMonthlyProjects(ml);
         await syncPush();
-        render(); showToast('💰 Đã đánh dấu đã thu!');
-      }}, ['💰 Đánh dấu đã thu']));
-    }
-    mCard.appendChild(mActions);
-    wrap.appendChild(mCard);
-  });
-
-  // Summary
-  const sumCard = div({ style: { background: 'var(--surface)', borderRadius: 'var(--r12)', border: '1px solid var(--border)', padding: 14, marginTop: 4 } });
-  const paidMonths = (mp.months || []).filter(m => m.paid).length;
-  sumCard.appendChild(div({ style: { fontSize: 13, color: 'var(--text2)' } }, [
-    `📊 ${paidMonths} tháng đã thu · ` + (monthlyFee ? fmtMoney(paidMonths * monthlyFee) + ' tổng' : ''),
-  ]));
-  wrap.appendChild(sumCard);
+        if (!wasDone) showToast('✅ Đã đánh dấu ' + d.label);
+        render();
+      }});
+      if (docData.done) cb.innerHTML = '<svg width="11" height="11" viewBox="0 0 11 11"><path d="M1.5 5.5l3 3 5-5" stroke="white" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+      row.appendChild(cb);
+      row.appendChild(span({ style: { fontSize: 16 } }, [d.icon]));
+      const info = div({ style: { flex: 1 } });
+      info.appendChild(div({ style: { fontSize: 13, fontWeight: 500, color: docData.done ? 'var(--text3)' : 'var(--text1)', textDecoration: docData.done ? 'line-through' : 'none' } }, [d.label]));
+      if (docData.done && docData.doneAt) info.appendChild(div({ style: { fontSize: 11, color: 'var(--green)' } }, [fmtDate(docData.doneAt)]));
+      if (docData.note) info.appendChild(div({ style: { fontSize: 11, color: 'var(--text3)' } }, [docData.note]));
+      if (docData.driveUrl) info.appendChild(el('a', { href: docData.driveUrl, target: '_blank', style: { fontSize: 11, color: 'var(--blue)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 3, marginTop: 2 } }, ['🔗 Mở Drive']));
+      row.appendChild(info);
+      row.appendChild(btn({ className: 'btn btn-ghost btn-sm', style: { fontSize: 12 }, onClick: e => {
+        e.stopPropagation();
+        setState({ modal: 'monthly_doc_note', modalData: { mpId: mp.id, docId: d.id, label: d.label, note: docData.note || '', driveUrl: docData.driveUrl || '' } });
+      }}, ['📝']));
+      docsCard.appendChild(row);
+    });
+    wrap.appendChild(docsCard);
+  }
 }
 
 function renderSettings(wrap) {
@@ -2112,6 +2205,86 @@ function renderModal(app) {
         await saveAndSync(projects);
         setState({ modal: null });
         showToast('✅ Đã cập nhật rounds');
+      }}, ['Lưu']),
+    ]));
+  }
+
+  else if (S.modal === 'stop_monthly') {
+    const mp = S.modalData;
+    modal.appendChild(div({ className: 'modal-header' }, [
+      div({ className: 'modal-title display' }, ['🛑 Dừng dự án']),
+      btn({ className: 'modal-close', onClick: () => setState({ modal: null, modalData: null }) }, ['×']),
+    ]));
+    modal.appendChild(div({ style: { fontSize: 13, color: 'var(--text2)', marginBottom: 14 } }, ['Dự án sẽ được đánh dấu đã dừng. Dữ liệu các tháng cũ vẫn giữ nguyên.']));
+    modal.appendChild(el('label', { className: 'input-label' }, ['Dừng từ tháng']));
+    const stopInp = inp({ className: 'input', type: 'month', value: currentYM(), style: { marginBottom: 14 } });
+    modal.appendChild(stopInp);
+    modal.appendChild(el('label', { className: 'input-label' }, ['Lý do dừng (tuỳ chọn)']));
+    const reasonInp = inp({ className: 'input', placeholder: 'Vd: Khách tạm ngưng, hết hợp đồng...', style: { marginBottom: 14 } });
+    modal.appendChild(reasonInp);
+    modal.appendChild(div({ style: { display: 'flex', gap: 8, justifyContent: 'flex-end' } }, [
+      btn({ className: 'btn btn-secondary', onClick: () => setState({ modal: null, modalData: null }) }, ['Huỷ']),
+      btn({ className: 'btn btn-primary', style: { background: 'var(--red)', borderColor: 'var(--red)' }, onClick: async () => {
+        const ml = getMonthlyProjects();
+        const mpi = ml.find(x => x.id === mp.id);
+        mpi.stoppedYM = stopInp.value;
+        mpi.stopReason = reasonInp.value.trim();
+        saveMonthlyProjects(ml);
+        await syncPush();
+        setState({ modal: null, modalData: null });
+        showToast('🛑 Đã dừng dự án từ ' + fmtYearMonth(stopInp.value));
+        render();
+      }}, ['Xác nhận dừng']),
+    ]));
+  }
+
+  else if (S.modal === 'resume_monthly') {
+    const mp = S.modalData;
+    modal.appendChild(div({ className: 'modal-header' }, [
+      div({ className: 'modal-title display' }, ['▶️ Tiếp tục dự án']),
+      btn({ className: 'modal-close', onClick: () => setState({ modal: null, modalData: null }) }, ['×']),
+    ]));
+    modal.appendChild(div({ style: { fontSize: 13, color: 'var(--text2)', marginBottom: 14 } }, [`Tiếp tục dự án "${mp.name}" từ tháng nào?`]));
+    const resumeInp = inp({ className: 'input', type: 'month', value: currentYM(), style: { marginBottom: 14 } });
+    modal.appendChild(resumeInp);
+    modal.appendChild(div({ style: { display: 'flex', gap: 8, justifyContent: 'flex-end' } }, [
+      btn({ className: 'btn btn-secondary', onClick: () => setState({ modal: null, modalData: null }) }, ['Huỷ']),
+      btn({ className: 'btn btn-primary', onClick: async () => {
+        const ml = getMonthlyProjects();
+        const mpi = ml.find(x => x.id === mp.id);
+        delete mpi.stoppedYM;
+        delete mpi.stopReason;
+        if (resumeInp.value < mpi.startYM) mpi.startYM = resumeInp.value;
+        saveMonthlyProjects(ml);
+        await syncPush();
+        setState({ modal: null, modalData: null });
+        showToast('▶️ Đã tiếp tục dự án từ ' + fmtYearMonth(resumeInp.value));
+        render();
+      }}, ['Tiếp tục']),
+    ]));
+  }
+
+  else if (S.modal === 'monthly_doc_note') {
+    const { mpId, docId, label, note: initNote, driveUrl: initUrl } = S.modalData;
+    modal.appendChild(div({ className: 'modal-header' }, [
+      div({ className: 'modal-title display' }, [label]),
+      btn({ className: 'modal-close', onClick: () => setState({ modal: null, modalData: null }) }, ['×']),
+    ]));
+    const noteInp   = inp({ className: 'input', placeholder: 'Ghi chú...', value: initNote, style: { marginBottom: 10 } });
+    const driveInp  = inp({ className: 'input', placeholder: 'Link Google Drive...', value: initUrl });
+    modal.appendChild(el('label', { className: 'input-label' }, ['Ghi chú'])); modal.appendChild(noteInp);
+    modal.appendChild(el('label', { className: 'input-label', style: { marginTop: 10 } }, ['Link Drive'])); modal.appendChild(driveInp);
+    modal.appendChild(div({ style: { display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 14 } }, [
+      btn({ className: 'btn btn-secondary', onClick: () => setState({ modal: null, modalData: null }) }, ['Huỷ']),
+      btn({ className: 'btn btn-primary', onClick: async () => {
+        const ml = getMonthlyProjects();
+        const mpi = ml.find(x => x.id === mpId);
+        if (!mpi.docs) mpi.docs = {};
+        mpi.docs[docId] = { ...mpi.docs[docId], note: noteInp.value.trim(), driveUrl: driveInp.value.trim() };
+        saveMonthlyProjects(ml);
+        await syncPush();
+        setState({ modal: null, modalData: null });
+        showToast('✅ Đã lưu');
       }}, ['Lưu']),
     ]));
   }
