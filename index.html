@@ -1965,66 +1965,57 @@ function renderModal(app) {
       div({ className: 'field' }, [el('label', { className: 'input-label' }, ['Deadline']), deadlineInp]),
     ]));
 
-    // ── Hạng mục dịch vụ (tự điền, chỉ khi tạo mới) ────────────────────────
+    // ── Hạng mục dịch vụ (tự điền — cả tạo mới lẫn sửa) ────────────────────
     // packages = [{name, roundCount}]
-    let customPkgs = [{ name: '', roundCount: 4 }];
-    if (!isEdit) {
-      const pkgField = div({ className: 'field' });
-      pkgField.appendChild(el('label', { className: 'input-label' }, ['Hạng mục dịch vụ']));
+    const existingPkgs = (p?.servicePackages || []).map(pkg =>
+      typeof pkg === 'string' ? { name: pkg, roundCount: null } : pkg
+    ).filter(pkg => pkg && pkg.name);
+    let customPkgs = existingPkgs.length ? existingPkgs.map(p => ({...p})) : [{ name: '', roundCount: 4 }];
 
-      const pkgList = div({ style: { display: 'flex', flexDirection: 'column', gap: 6 } });
+    const pkgField = div({ className: 'field' });
+    pkgField.appendChild(el('label', { className: 'input-label' }, ['Hạng mục dịch vụ']));
+    const pkgList = div({ style: { display: 'flex', flexDirection: 'column', gap: 6 } });
 
-      const renderPkgRows = () => {
-        pkgList.innerHTML = '';
-        customPkgs.forEach((pkg, i) => {
-          const row = div({ style: { display: 'flex', gap: 6, alignItems: 'center' } });
-
-          const nameI = inp({
-            className: 'input',
-            placeholder: 'Tên hạng mục (vd: Logo, Bảng hiệu...)',
-            value: pkg.name,
-            style: { flex: 1 },
-            onInput: e => { customPkgs[i].name = e.target.value; },
-          });
-
-          const countI = inp({
-            className: 'input',
-            type: 'number',
-            min: 1, max: 10,
-            value: pkg.roundCount,
-            style: { width: 80, textAlign: 'center' },
-            onInput: e => { customPkgs[i].roundCount = Number(e.target.value) || 4; },
-          });
-
-          const countWrap = div({ style: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, flexShrink: 0 } });
-          countWrap.appendChild(countI);
-          countWrap.appendChild(div({ style: { fontSize: 10, color: 'var(--text3)', whiteSpace: 'nowrap' } }, ['rounds']));
-
-          const delBtn = btn({
-            className: 'btn btn-ghost btn-sm',
-            style: { color: 'var(--text3)', padding: '6px 8px', flexShrink: 0, visibility: customPkgs.length > 1 ? 'visible' : 'hidden' },
-            onClick: () => { customPkgs.splice(i, 1); renderPkgRows(); },
-          }, ['✕']);
-
-          row.appendChild(nameI);
-          row.appendChild(countWrap);
-          row.appendChild(delBtn);
-          pkgList.appendChild(row);
+    const renderPkgRows = () => {
+      pkgList.innerHTML = '';
+      customPkgs.forEach((pkg, i) => {
+        const row = div({ style: { display: 'flex', gap: 6, alignItems: 'center' } });
+        const nameI = inp({
+          className: 'input', placeholder: 'Tên hạng mục (vd: Logo, Bảng hiệu...)',
+          value: pkg.name, style: { flex: 1 },
+          onInput: e => { customPkgs[i].name = e.target.value; },
         });
-      };
+        const countI = inp({
+          className: 'input', type: 'number', min: 1, max: 10,
+          value: pkg.roundCount || 4, style: { width: 80, textAlign: 'center' },
+          onInput: e => { customPkgs[i].roundCount = Number(e.target.value) || 4; },
+        });
+        const countWrap = div({ style: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, flexShrink: 0 } });
+        countWrap.appendChild(countI);
+        countWrap.appendChild(div({ style: { fontSize: 10, color: 'var(--text3)', whiteSpace: 'nowrap' } }, ['rounds']));
+        const delBtn = btn({
+          className: 'btn btn-ghost btn-sm',
+          style: { color: 'var(--text3)', padding: '6px 8px', flexShrink: 0, visibility: customPkgs.length > 1 ? 'visible' : 'hidden' },
+          onClick: () => { customPkgs.splice(i, 1); renderPkgRows(); },
+        }, ['✕']);
+        row.appendChild(nameI); row.appendChild(countWrap); row.appendChild(delBtn);
+        pkgList.appendChild(row);
+      });
+    };
 
-      renderPkgRows();
-      pkgField.appendChild(pkgList);
-
-      const addPkgBtn = btn({
-        className: 'btn btn-ghost btn-sm',
-        style: { marginTop: 6, color: 'var(--accent)' },
-        onClick: () => { customPkgs.push({ name: '', roundCount: 4 }); renderPkgRows(); },
-      }, ['+ Thêm hạng mục']);
-      pkgField.appendChild(addPkgBtn);
+    renderPkgRows();
+    pkgField.appendChild(pkgList);
+    pkgField.appendChild(btn({
+      className: 'btn btn-ghost btn-sm',
+      style: { marginTop: 6, color: 'var(--accent)' },
+      onClick: () => { customPkgs.push({ name: '', roundCount: 4 }); renderPkgRows(); },
+    }, ['+ Thêm hạng mục']));
+    if (isEdit) {
+      pkgField.appendChild(div({ style: { fontSize: 11, color: 'var(--text3)', marginTop: 5 } }, ['⚠️ Thêm hạng mục mới sẽ sinh thêm rounds. Hạng mục cũ và rounds cũ giữ nguyên.']));
+    } else {
       pkgField.appendChild(div({ style: { fontSize: 11, color: 'var(--text3)', marginTop: 5 } }, ['Điền tên hạng mục và số rounds. Bỏ trống tên = dùng rounds mặc định.']));
-      modal.appendChild(pkgField);
     }
+    modal.appendChild(pkgField);
 
     modal.appendChild(div({ className: 'field' }, [el('label', { className: 'input-label' }, ['Ghi chú']), notesInp]));
     modal.appendChild(div({ style: { display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 } }, [
@@ -2038,7 +2029,17 @@ function renderModal(app) {
         const vatRate = Number(vatRateInp.value);
         if (isEdit) {
           const idx = projects.findIndex(x => x.id === S.selectedId);
-          projects[idx] = { ...projects[idx], name, client: clientInp.value.trim(), contractValue, contractValueBeforeVat, vatRate, deadline: deadlineInp.value || null, notes: notesInp.value.trim() || null };
+          if (idx === -1) { showToast('❌ Không tìm thấy dự án!'); return; }
+          const validPkgs = customPkgs.filter(x => x.name.trim());
+          const oldPkgNames = ((projects[idx].servicePackages || []).map(p => typeof p === 'string' ? p : p?.name)).filter(Boolean);
+          const newPkgs = validPkgs.filter(p => !oldPkgNames.includes(p.name));
+          if (newPkgs.length) {
+            const newRounds = buildRoundsFromPackages(newPkgs);
+            projects[idx].rounds = oldPkgNames.length
+              ? [...(projects[idx].rounds || []), ...newRounds]
+              : newRounds;
+          }
+          projects[idx] = { ...projects[idx], name, client: clientInp.value.trim(), contractValue, contractValueBeforeVat, vatRate, deadline: deadlineInp.value || null, notes: notesInp.value.trim() || null, servicePackages: validPkgs };
           if (contractValue && (!projects[idx].payments || !projects[idx].payments.length)) {
             projects[idx].payments = calcPayments(contractValue);
           }
