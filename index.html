@@ -190,6 +190,7 @@ let S = {
   modal: null,
   modalData: null,
   filterStatus: 'all',
+  filterRound: 'all_rounds',
   search: '',
   syncStatus: 'idle', // idle | syncing | ok | err
   tgPolling: false,
@@ -813,10 +814,20 @@ function renderList(wrap) {
 
   // ── Tab: Projects ─────────────────────────────────────────────────────────
   if (S.listTab === 'projects') {
-    const toolbar = div({ style: { display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' } });
-    const searchInp = inp({ className: 'input', placeholder: '🔍 Tìm dự án...', value: S.search, style: { flex: 1, minWidth: 160 }, onInput: e => { S.search = e.target.value; render(); } });
+    const toolbar = div({ style: { display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' } });
+    const searchInp = inp({
+      className: 'input',
+      placeholder: '🔍 Tìm dự án...',
+      value: S.search,
+      style: { flex: 1, minWidth: 160 },
+      onInput: e => {
+        S.search = e.target.value;
+        // Only re-render the project list, not the whole page
+        renderProjectList();
+      },
+    });
     toolbar.appendChild(searchInp);
-    toolbar.appendChild(el('select', { className: 'input', style: { width: 150 }, onChange: e => setState({ filterStatus: e.target.value }) }, [
+    toolbar.appendChild(el('select', { className: 'input', style: { width: 150 }, onChange: e => { S.filterStatus = e.target.value; renderProjectList(); } }, [
       el('option', { value: 'all' }, ['Tất cả trạng thái']),
       ...Object.entries(PROJECT_STATUS).filter(([k]) => k !== 'archived').map(([k, v]) => el('option', { value: k, ...(S.filterStatus === k ? { selected: '' } : {}) }, [v.icon + ' ' + v.label])),
     ]));
@@ -829,20 +840,114 @@ function renderList(wrap) {
     }
     wrap.appendChild(toolbar);
 
-    let visible = activeProjects;
-    if (S.filterStatus !== 'all') visible = visible.filter(p => p.status === S.filterStatus);
-    if (S.search) visible = visible.filter(p => (p.name || '').toLowerCase().includes(S.search.toLowerCase()) || (p.client || '').toLowerCase().includes(S.search.toLowerCase()));
-    visible = visible.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    // ── Round filter pills ────────────────────────────────────────────────
+    const roundFilter = div({ style: { display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 } });
+    const roundOptions = [
+      { id: 'all_rounds', label: 'Tất cả' },
+      { id: 'r1', label: 'Round 1' },
+      { id: 'r2', label: 'Round 2' },
+      { id: 'r3', label: 'Round 3' },
+      { id: 'r4plus', label: 'Round 4+' },
+      { id: 'done', label: '✅ Xong hết' },
+    ];
+    const curRF = S.filterRound || 'all_rounds';
+    roundOptions.forEach(opt => {
+      const active = curRF === opt.id;
+      roundFilter.appendChild(btn({
+        style: {
+          padding: '5px 12px', borderRadius: 100, fontSize: 12, fontWeight: active ? 700 : 400, border: 'none', cursor: 'pointer',
+          background: active ? 'var(--accent)' : 'var(--surface2)',
+          color: active ? '#fff' : 'var(--text2)',
+          transition: 'all .12s',
+        },
+        onClick: () => { S.filterRound = opt.id; renderProjectList(); },
+      }, [opt.label]));
+    });
+    wrap.appendChild(roundFilter);
 
-    if (!visible.length) {
-      const empty = div({ className: 'empty' });
-      empty.appendChild(div({ className: 'empty-icon' }, ['📁']));
-      empty.appendChild(div({ className: 'empty-text' }, [activeProjects.length ? 'Không có dự án nào phù hợp' : 'Chưa có dự án nào']));
-      if (!activeProjects.length) empty.appendChild(btn({ className: 'btn btn-primary', onClick: () => setState({ modal: 'new_project' }) }, ['+ Tạo dự án đầu tiên']));
-      wrap.appendChild(empty);
-      return;
+    // ── Project list container (re-rendered without rebuilding toolbar) ───
+    const listContainer = div({ id: 'project-list-container' });
+    wrap.appendChild(listContainer);
+
+    function getActiveRoundNumber(p) {
+      const rounds = p.rounds || [];
+      if (!rounds.length) return 0;
+      const allDone = rounds.every(r => r.status === 'done');
+      if (allDone) return -1; // done
+      const activeIdx = rounds.findIndex(r => r.status === 'inprogress' || r.status === 'review');
+      if (activeIdx !== -1) return activeIdx + 1;
+      const lastDone = rounds.map(r => r.status).lastIndexOf('done');
+      return lastDone + 2; // next round number (1-based)
     }
-    visible.forEach(p => renderProjectCard(wrap, p));
+
+    function renderProjectList() {
+      listContainer.innerHTML = '';
+      let visible = activeProjects.slice();
+      if (S.filterStatus !== 'all') visible = visible.filter(p => p.status === S.filterStatus);
+      if (S.search) {
+        const q = S.search.toLowerCase();
+        visible = visible.filter(p => (p.name || '').toLowerCase().includes(q) || (p.client || '').toLowerCase().includes(q));
+      }
+      // Round filter
+      const rf = S.filterRound || 'all_rounds';
+      if (rf !== 'all_rounds') {
+        visible = visible.filter(p => {
+          const n = getActiveRoundNumber(p);
+          if (rf === 'done') return n === -1;
+          if (rf === 'r1') return n === 1;
+          if (rf === 'r2') return n === 2;
+          if (rf === 'r3') return n === 3;
+          if (rf === 'r4plus') return n >= 4;
+          return true;
+        });
+      }
+      visible = visible.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+      if (!visible.length) {
+        const empty = div({ className: 'empty' });
+        empty.appendChild(div({ className: 'empty-icon' }, ['📁']));
+        empty.appendChild(div({ className: 'empty-text' }, ['Không có dự án nào phù hợp']));
+        listContainer.appendChild(empty);
+        return;
+      }
+
+      // Group by round when no specific round filter applied
+      if (rf === 'all_rounds') {
+        const groups = {};
+        const groupOrder = ['inprogress_r1','inprogress_r2','inprogress_r3','inprogress_r4plus','done','no_rounds'];
+        const groupMeta = {
+          inprogress_r1:     { label: '⚡ Round 1', color: 'var(--accent)' },
+          inprogress_r2:     { label: '⚡ Round 2', color: 'var(--accent)' },
+          inprogress_r3:     { label: '⚡ Round 3', color: 'var(--accent)' },
+          inprogress_r4plus: { label: '⚡ Round 4+', color: 'var(--accent)' },
+          done:              { label: '✅ Hoàn thành', color: 'var(--green)' },
+          no_rounds:         { label: '📋 Chưa bắt đầu', color: 'var(--text3)' },
+        };
+        visible.forEach(p => {
+          const n = getActiveRoundNumber(p);
+          let key = n === -1 ? 'done' : n === 0 ? 'no_rounds' : n === 1 ? 'inprogress_r1' : n === 2 ? 'inprogress_r2' : n === 3 ? 'inprogress_r3' : 'inprogress_r4plus';
+          if (!groups[key]) groups[key] = [];
+          groups[key].push(p);
+        });
+        groupOrder.forEach(key => {
+          if (!groups[key] || !groups[key].length) return;
+          const meta = groupMeta[key];
+          const header = div({ style: { fontSize: 11, fontWeight: 700, color: meta.color, textTransform: 'uppercase', letterSpacing: '.06em', padding: '6px 2px 6px', display: 'flex', alignItems: 'center', gap: 6 } });
+          header.appendChild(span({}, [meta.label]));
+          header.appendChild(span({ style: { background: 'var(--surface2)', color: 'var(--text3)', borderRadius: 100, padding: '1px 7px', fontSize: 10, fontWeight: 600, letterSpacing: 0 } }, [String(groups[key].length)]));
+          listContainer.appendChild(header);
+          groups[key].forEach(p => renderProjectCard(listContainer, p));
+        });
+      } else {
+        visible.forEach(p => renderProjectCard(listContainer, p));
+      }
+    }
+
+    renderProjectList();
+    // Re-focus search input after partial re-render
+    searchInp.addEventListener('input', () => {
+      // Keep cursor at end
+    });
   }
 
   // ── Tab: Monthly ──────────────────────────────────────────────────────────
