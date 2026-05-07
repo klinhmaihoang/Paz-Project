@@ -1488,44 +1488,150 @@ function renderPaymentsTab(wrap, p) {
 
 // ── Docs Tab ───────────────────────────────────────────────────────────────────
 function renderDocsTab(wrap, p) {
-  const docsCard = div({ style: { background: 'var(--surface)', borderRadius: 'var(--r12)', border: '1px solid var(--border)', padding: 16 } });
-  docsCard.appendChild(div({ className: 'section-title', style: { marginBottom: 14 } }, ['Giấy tờ & Hồ sơ']));
   const docs = p.docs || {};
-  DOCS.forEach(d => {
-    const docData = docs[d.id] || {};
-    const row = div({ className: 'doc-row' });
-    const cb = div({ className: 'doc-check' + (docData.done ? ' checked' : ''), onClick: async () => {
-      const projects = getProjects();
-      const pidx = projects.findIndex(x => x.id === S.selectedId);
-      if (!projects[pidx].docs) projects[pidx].docs = {};
-      const wasDone = projects[pidx].docs[d.id]?.done;
-      projects[pidx].docs[d.id] = { ...projects[pidx].docs[d.id], done: !wasDone, doneAt: !wasDone ? new Date().toISOString() : null };
-      await saveAndSync(projects);
-      if (!wasDone) showToast('✅ Đã đánh dấu ' + d.label);
-      render();
+
+  // Summary bar
+  const total = DOCS.length;
+  const fullyClosed = DOCS.filter(d => docs[d.id]?.received).length;
+  const sentOnly    = DOCS.filter(d => docs[d.id]?.sent && !docs[d.id]?.received).length;
+  const notSent     = total - fullyClosed - sentOnly;
+
+  const summaryBar = div({ style: { display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' } });
+  [
+    { label: 'Chưa gửi', count: notSent,     bg: 'var(--surface2)',  color: 'var(--text3)'  },
+    { label: 'Đã gửi',   count: sentOnly,    bg: 'var(--yellow-bg)', color: 'var(--yellow)' },
+    { label: 'Lưu đủ',   count: fullyClosed, bg: 'var(--green-bg)',  color: 'var(--green)'  },
+  ].forEach(s => {
+    const chip = div({ style: { display: 'flex', alignItems: 'center', gap: 6, padding: '5px 12px', borderRadius: 100, background: s.bg, fontSize: 12 } });
+    chip.appendChild(span({ style: { fontWeight: 700, color: s.color, fontSize: 14 } }, [String(s.count)]));
+    chip.appendChild(span({ style: { color: s.color } }, [s.label]));
+    summaryBar.appendChild(chip);
+  });
+  wrap.appendChild(summaryBar);
+
+  // Doc rows
+  const docsCard = div({ style: { background: 'var(--surface)', borderRadius: 'var(--r12)', border: '1px solid var(--border)', overflow: 'hidden' } });
+
+  DOCS.forEach((d, di) => {
+    const dd = docs[d.id] || {};
+    const isLast = di === DOCS.length - 1;
+
+    const row = div({ style: {
+      padding: '12px 16px',
+      borderBottom: isLast ? 'none' : '1px solid var(--border)',
+      background: dd.received ? 'var(--green-bg)' : dd.signed ? '#f5f3ff' : dd.sent ? 'var(--yellow-bg)' : 'transparent',
     }});
-    if (docData.done) cb.innerHTML = '<svg width="11" height="11" viewBox="0 0 11 11"><path d="M1.5 5.5l3 3 5-5" stroke="white" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-    row.appendChild(cb);
-    row.appendChild(span({ style: { fontSize: 16 } }, [d.icon]));
-    const info = div({ style: { flex: 1 } });
-    info.appendChild(div({ style: { fontSize: 13, fontWeight: 500, color: docData.done ? 'var(--text3)' : 'var(--text1)', textDecoration: docData.done ? 'line-through' : 'none' } }, [d.label]));
-    if (docData.done && docData.doneAt) info.appendChild(div({ style: { fontSize: 11, color: 'var(--green)' } }, [fmtDate(docData.doneAt)]));
-    if (docData.note) info.appendChild(div({ style: { fontSize: 11, color: 'var(--text3)' } }, [docData.note]));
-    if (docData.driveUrl) {
-      const linkEl = el('a', {
-        href: docData.driveUrl,
-        target: '_blank',
-        style: { fontSize: 11, color: 'var(--blue)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 3, marginTop: 2 },
-      }, ['🔗 Mở trên Drive']);
-      info.appendChild(linkEl);
+
+    // Doc name + status badge
+    const top = div({ style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: dd.sent ? 8 : 0 } });
+    top.appendChild(span({ style: { fontSize: 15 } }, [d.icon]));
+    top.appendChild(div({ style: { fontWeight: 600, fontSize: 13, flex: 1 } }, [d.label]));
+
+    // Overall status badge
+    const statusBadge = dd.received
+      ? { label: '📥 Lưu đủ',   bg: 'var(--green-bg)',  color: 'var(--green)'  }
+      : dd.signed
+      ? { label: '✍️ Đã ký',    bg: '#ede9fe',          color: '#7c3aed'       }
+      : dd.sent
+      ? { label: '📤 Đã gửi',   bg: 'var(--yellow-bg)', color: 'var(--yellow)' }
+      : { label: '⬜ Chưa gửi', bg: 'var(--surface2)',  color: 'var(--text3)'  };
+    top.appendChild(span({ style: { fontSize: 11, padding: '2px 8px', borderRadius: 100, background: statusBadge.bg, color: statusBadge.color, fontWeight: 600, whiteSpace: 'nowrap' } }, [statusBadge.label]));
+
+    if (dd.driveUrl) top.appendChild(el('a', { href: dd.driveUrl, target: '_blank', style: { fontSize: 11, color: 'var(--blue)', textDecoration: 'none', whiteSpace: 'nowrap' } }, ['🔗 Drive']));
+    row.appendChild(top);
+
+    // 3 action steps — only show if not yet fully done
+    if (!dd.received) {
+      const steps = div({ style: { display: 'flex', gap: 6, flexWrap: 'wrap' } });
+
+      // Step 1: Gửi khách
+      if (!dd.sent) {
+        steps.appendChild(btn({
+          style: { fontSize: 11, padding: '4px 12px', borderRadius: 100, background: 'var(--accent)', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 600 },
+          onClick: async () => {
+            const projects = getProjects(); const pidx = projects.findIndex(x => x.id === S.selectedId);
+            if (!projects[pidx].docs) projects[pidx].docs = {};
+            projects[pidx].docs[d.id] = { ...projects[pidx].docs[d.id], sent: true, sentAt: new Date().toISOString() };
+            await saveAndSync(projects); showToast('📤 Đã gửi ' + d.label); render();
+          },
+        }, ['📤 Đánh dấu đã gửi']));
+      } else {
+        // Show sent date + undo
+        const sentRow = div({ style: { display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 } });
+        sentRow.appendChild(span({ style: { fontSize: 11, color: 'var(--yellow)', fontWeight: 500 } }, ['📤 Gửi ' + (dd.sentAt ? fmtDate(dd.sentAt) : '')]));
+        sentRow.appendChild(btn({ style: { fontSize: 10, padding: '1px 6px', borderRadius: 4, background: 'none', border: '1px solid var(--border)', color: 'var(--text3)', cursor: 'pointer' },
+          onClick: async () => {
+            const projects = getProjects(); const pidx = projects.findIndex(x => x.id === S.selectedId);
+            projects[pidx].docs[d.id] = { ...projects[pidx].docs[d.id], sent: false, sentAt: null, signed: false, signedAt: null };
+            await saveAndSync(projects); render();
+          },
+        }, ['↩️']));
+        steps.appendChild(sentRow);
+      }
+
+      // Step 2: Khách ký (only after sent)
+      if (dd.sent && !dd.signed) {
+        steps.appendChild(btn({
+          style: { fontSize: 11, padding: '4px 12px', borderRadius: 100, background: '#7c3aed', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 600 },
+          onClick: async () => {
+            const projects = getProjects(); const pidx = projects.findIndex(x => x.id === S.selectedId);
+            projects[pidx].docs[d.id] = { ...projects[pidx].docs[d.id], signed: true, signedAt: new Date().toISOString() };
+            await saveAndSync(projects); showToast('✍️ Khách đã ký ' + d.label); render();
+          },
+        }, ['✍️ Khách đã ký']));
+      } else if (dd.signed) {
+        const signRow = div({ style: { display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 } });
+        signRow.appendChild(span({ style: { fontSize: 11, color: '#7c3aed', fontWeight: 500 } }, ['✍️ Ký ' + (dd.signedAt ? fmtDate(dd.signedAt) : '')]));
+        signRow.appendChild(btn({ style: { fontSize: 10, padding: '1px 6px', borderRadius: 4, background: 'none', border: '1px solid var(--border)', color: 'var(--text3)', cursor: 'pointer' },
+          onClick: async () => {
+            const projects = getProjects(); const pidx = projects.findIndex(x => x.id === S.selectedId);
+            projects[pidx].docs[d.id] = { ...projects[pidx].docs[d.id], signed: false, signedAt: null };
+            await saveAndSync(projects); render();
+          },
+        }, ['↩️']));
+        steps.appendChild(signRow);
+      }
+
+      // Step 3: Nhận lại bản lưu (only after signed)
+      if (dd.signed) {
+        steps.appendChild(btn({
+          style: { fontSize: 11, padding: '4px 12px', borderRadius: 100, background: 'var(--green)', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 600 },
+          onClick: async () => {
+            const projects = getProjects(); const pidx = projects.findIndex(x => x.id === S.selectedId);
+            projects[pidx].docs[d.id] = { ...projects[pidx].docs[d.id], received: true, receivedAt: new Date().toISOString() };
+            await saveAndSync(projects); showToast('📥 Đã nhận lại ' + d.label); render();
+          },
+        }, ['📥 Đã nhận lại']));
+      }
+
+      row.appendChild(steps);
+    } else {
+      // Fully done — show all 3 dates + undo
+      const doneRow = div({ style: { display: 'flex', gap: 12, fontSize: 11, flexWrap: 'wrap', alignItems: 'center' } });
+      if (dd.sentAt)     doneRow.appendChild(span({ style: { color: 'var(--yellow)' } },  ['📤 ' + fmtDate(dd.sentAt)]));
+      if (dd.signedAt)   doneRow.appendChild(span({ style: { color: '#7c3aed' } },         ['✍️ ' + fmtDate(dd.signedAt)]));
+      if (dd.receivedAt) doneRow.appendChild(span({ style: { color: 'var(--green)' } },    ['📥 ' + fmtDate(dd.receivedAt)]));
+      if (dd.note)       doneRow.appendChild(span({ style: { color: 'var(--text3)', fontStyle: 'italic' } }, [dd.note]));
+      doneRow.appendChild(btn({ style: { fontSize: 10, padding: '1px 6px', borderRadius: 4, background: 'none', border: '1px solid var(--border)', color: 'var(--text3)', cursor: 'pointer', marginLeft: 'auto' },
+        onClick: async () => {
+          const projects = getProjects(); const pidx = projects.findIndex(x => x.id === S.selectedId);
+          projects[pidx].docs[d.id] = { ...projects[pidx].docs[d.id], received: false, receivedAt: null };
+          await saveAndSync(projects); render();
+        },
+      }, ['↩️ Hoàn tác']));
+      row.appendChild(doneRow);
     }
-    row.appendChild(info);
-    row.appendChild(btn({ className: 'btn btn-ghost btn-sm', style: { fontSize: 12 }, onClick: e => {
-      e.stopPropagation();
-      setState({ modal: 'doc_note', modalData: { projectId: p.id, docId: d.id, label: d.label, note: docData.note || '', driveUrl: docData.driveUrl || '' } });
-    }}, ['📝']));
+
+    // Note + Drive link edit button
+    const editBtn = btn({ style: { position: 'absolute', top: 12, right: 12, fontSize: 11, padding: '2px 6px', borderRadius: 4, background: 'none', border: '1px solid var(--border)', color: 'var(--text3)', cursor: 'pointer' },
+      onClick: e => { e.stopPropagation(); setState({ modal: 'doc_note', modalData: { projectId: p.id, docId: d.id, label: d.label, note: dd.note || '', driveUrl: dd.driveUrl || '' } }); },
+    }, ['📝']);
+    row.style.position = 'relative';
+    row.appendChild(editBtn);
+
     docsCard.appendChild(row);
   });
+
   wrap.appendChild(docsCard);
 }
 
