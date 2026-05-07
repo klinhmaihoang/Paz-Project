@@ -155,6 +155,14 @@ const DOCS = [
   { id: 'invoice',   label: 'Hoá đơn', icon: '🧾' },
 ];
 
+// Hồ sơ lặp lại theo từng tháng (cho dự án hàng tháng)
+const MONTHLY_DOCS = [
+  { id: 'dntt',    label: 'ĐNTT', icon: '💸' },
+  { id: 'bbnt',    label: 'BBNT', icon: '✍️' },
+  { id: 'invoice', label: 'Hoá đơn', icon: '🧾' },
+  { id: 'report',  label: 'Báo cáo', icon: '📊' },
+];
+
 // ── Service Packages (Hạng mục) ────────────────────────────────────────────────
 // Builds rounds from free-form packages array: [{name, roundCount}]
 function buildRoundsFromPackages(packages) {
@@ -1658,42 +1666,110 @@ function renderMonthlyDetail(wrap) {
     });
   }
 
-  // ── Tab: Docs ────────────────────────────────────────────────────────────────
+  // ── Tab: Docs (per-month) ────────────────────────────────────────────────────
   else if (mTab === 'docs') {
-    const docsCard = div({ style: { background: 'var(--surface)', borderRadius: 'var(--r12)', border: '1px solid var(--border)', padding: 16 } });
-    docsCard.appendChild(div({ className: 'section-title', style: { marginBottom: 14 } }, ['📂 Hồ sơ & Hợp đồng']));
-
+    // One-time docs: contract, quotation, appendix (shared for whole project)
+    const ONE_TIME_DOCS = DOCS.filter(d => ['quotation','contract','appendix'].includes(d.id));
     const mpDocs = mp.docs || {};
-    DOCS.forEach(d => {
+
+    const oneTimeCard = div({ style: { background: 'var(--surface)', borderRadius: 'var(--r12)', border: '1px solid var(--border)', padding: 16, marginBottom: 14 } });
+    oneTimeCard.appendChild(div({ className: 'section-title', style: { marginBottom: 10, fontSize: 13 } }, ['📂 Hồ sơ chung (1 lần)']));
+    ONE_TIME_DOCS.forEach(d => {
       const docData = mpDocs[d.id] || {};
       const row = div({ className: 'doc-row' });
       const cb = div({ className: 'doc-check' + (docData.done ? ' checked' : ''), onClick: async () => {
-        const ml = getMonthlyProjects();
-        const mpi = ml.find(x => x.id === mp.id);
+        const ml = getMonthlyProjects(); const mpi = ml.find(x => x.id === mp.id);
         if (!mpi.docs) mpi.docs = {};
         const wasDone = mpi.docs[d.id]?.done;
         mpi.docs[d.id] = { ...mpi.docs[d.id], done: !wasDone, doneAt: !wasDone ? new Date().toISOString() : null };
-        saveMonthlyProjects(ml);
-        await syncPush();
-        if (!wasDone) showToast('✅ Đã đánh dấu ' + d.label);
-        render();
+        saveMonthlyProjects(ml); await syncPush();
+        if (!wasDone) showToast('✅ ' + d.label); render();
       }});
       if (docData.done) cb.innerHTML = '<svg width="11" height="11" viewBox="0 0 11 11"><path d="M1.5 5.5l3 3 5-5" stroke="white" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>';
       row.appendChild(cb);
       row.appendChild(span({ style: { fontSize: 16 } }, [d.icon]));
       const info = div({ style: { flex: 1 } });
       info.appendChild(div({ style: { fontSize: 13, fontWeight: 500, color: docData.done ? 'var(--text3)' : 'var(--text1)', textDecoration: docData.done ? 'line-through' : 'none' } }, [d.label]));
-      if (docData.done && docData.doneAt) info.appendChild(div({ style: { fontSize: 11, color: 'var(--green)' } }, [fmtDate(docData.doneAt)]));
-      if (docData.note) info.appendChild(div({ style: { fontSize: 11, color: 'var(--text3)' } }, [docData.note]));
-      if (docData.driveUrl) info.appendChild(el('a', { href: docData.driveUrl, target: '_blank', style: { fontSize: 11, color: 'var(--blue)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 3, marginTop: 2 } }, ['🔗 Mở Drive']));
+      if (docData.driveUrl) info.appendChild(el('a', { href: docData.driveUrl, target: '_blank', style: { fontSize: 11, color: 'var(--blue)', textDecoration: 'none', marginTop: 2, display: 'inline-block' } }, ['🔗 Drive']));
       row.appendChild(info);
-      row.appendChild(btn({ className: 'btn btn-ghost btn-sm', style: { fontSize: 12 }, onClick: e => {
-        e.stopPropagation();
-        setState({ modal: 'monthly_doc_note', modalData: { mpId: mp.id, docId: d.id, label: d.label, note: docData.note || '', driveUrl: docData.driveUrl || '' } });
-      }}, ['📝']));
-      docsCard.appendChild(row);
+      row.appendChild(btn({ className: 'btn btn-ghost btn-sm', style: { fontSize: 12 }, onClick: e => { e.stopPropagation(); setState({ modal: 'monthly_doc_note', modalData: { mpId: mp.id, docId: d.id, label: d.label, note: docData.note || '', driveUrl: docData.driveUrl || '', monthly: false } }); } }, ['📝']));
+      oneTimeCard.appendChild(row);
     });
-    wrap.appendChild(docsCard);
+    wrap.appendChild(oneTimeCard);
+
+    // Per-month docs — newest month first
+    const now = new Date();
+    const endDate = mp.stoppedYM ? new Date(mp.stoppedYM + '-01') : now;
+    const startDate = mp.startYM ? new Date(mp.startYM + '-01') : new Date(now.getFullYear(), now.getMonth() - 5, 1);
+    const months = [];
+    for (let d = new Date(endDate.getFullYear(), endDate.getMonth(), 1); d >= startDate; d.setMonth(d.getMonth() - 1)) {
+      months.push(d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'));
+    }
+
+    months.forEach(mym => {
+      const rec = (mp.months || []).find(m => m.ym === mym) || { ym: mym, status: 'pending', paid: false };
+      const recDocs = rec.docs || {};
+      const doneCount = MONTHLY_DOCS.filter(d => recDocs[d.id]?.done).length;
+      const allDone = doneCount === MONTHLY_DOCS.length;
+      const isCurrent = mym === currentYM();
+
+      const mDocCard = div({ style: {
+        background: 'var(--surface)', borderRadius: 'var(--r12)',
+        border: isCurrent ? '2px solid var(--accent)' : '1px solid var(--border)',
+        padding: '12px 14px', marginBottom: 10,
+      }});
+
+      // Month header with progress
+      const mHead = div({ style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, cursor: 'pointer' }, onClick: () => {
+        // toggle expand
+        const body = mDocCard.querySelector('.monthly-doc-body');
+        if (body) body.style.display = body.style.display === 'none' ? 'block' : 'none';
+      }});
+      mHead.appendChild(div({ style: { fontWeight: 700, fontSize: 13, flex: 1 } }, [fmtYearMonth(mym) + (isCurrent ? ' 📌' : '')]));
+      // Progress pills for each doc
+      MONTHLY_DOCS.forEach(d => {
+        const done = recDocs[d.id]?.done;
+        mHead.appendChild(span({ style: { fontSize: 10, padding: '2px 7px', borderRadius: 100, background: done ? 'var(--green-bg)' : 'var(--surface2)', color: done ? 'var(--green)' : 'var(--text3)', fontWeight: 600 } }, [d.icon + ' ' + d.label]));
+      });
+      mHead.appendChild(span({ style: { fontSize: 10, color: allDone ? 'var(--green)' : 'var(--text3)' } }, [doneCount + '/' + MONTHLY_DOCS.length]));
+      mDocCard.appendChild(mHead);
+
+      // Expandable checklist body
+      const body = div({ className: 'monthly-doc-body' });
+      MONTHLY_DOCS.forEach(d => {
+        const docData = recDocs[d.id] || {};
+        const row = div({ className: 'doc-row' });
+        const cb = div({ className: 'doc-check' + (docData.done ? ' checked' : ''), onClick: async () => {
+          const ml = getMonthlyProjects();
+          const mpi = ml.find(x => x.id === mp.id);
+          if (!mpi.months) mpi.months = [];
+          let mr = mpi.months.find(m => m.ym === mym);
+          if (!mr) { mr = { ym: mym, status: 'pending', paid: false, docs: {} }; mpi.months.push(mr); }
+          if (!mr.docs) mr.docs = {};
+          const wasDone = mr.docs[d.id]?.done;
+          mr.docs[d.id] = { ...mr.docs[d.id], done: !wasDone, doneAt: !wasDone ? new Date().toISOString() : null };
+          saveMonthlyProjects(ml); await syncPush();
+          if (!wasDone) showToast('✅ ' + d.label + ' — ' + fmtYearMonth(mym));
+          render();
+        }});
+        if (docData.done) cb.innerHTML = '<svg width="11" height="11" viewBox="0 0 11 11"><path d="M1.5 5.5l3 3 5-5" stroke="white" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+        row.appendChild(cb);
+        row.appendChild(span({ style: { fontSize: 16 } }, [d.icon]));
+        const info = div({ style: { flex: 1 } });
+        info.appendChild(div({ style: { fontSize: 13, fontWeight: 500, color: docData.done ? 'var(--text3)' : 'var(--text1)', textDecoration: docData.done ? 'line-through' : 'none' } }, [d.label]));
+        if (docData.done && docData.doneAt) info.appendChild(div({ style: { fontSize: 11, color: 'var(--green)' } }, [fmtDate(docData.doneAt)]));
+        if (docData.note) info.appendChild(div({ style: { fontSize: 11, color: 'var(--text3)' } }, [docData.note]));
+        if (docData.driveUrl) info.appendChild(el('a', { href: docData.driveUrl, target: '_blank', style: { fontSize: 11, color: 'var(--blue)', textDecoration: 'none', marginTop: 2, display: 'inline-block' } }, ['🔗 Drive']));
+        row.appendChild(info);
+        row.appendChild(btn({ className: 'btn btn-ghost btn-sm', style: { fontSize: 12 }, onClick: e => {
+          e.stopPropagation();
+          setState({ modal: 'monthly_doc_note', modalData: { mpId: mp.id, mym, docId: d.id, label: d.label + ' — ' + fmtYearMonth(mym), note: docData.note || '', driveUrl: docData.driveUrl || '', monthly: true } });
+        }}, ['📝']));
+        body.appendChild(row);
+      });
+      mDocCard.appendChild(body);
+      wrap.appendChild(mDocCard);
+    });
   }
 }
 
@@ -2265,13 +2341,13 @@ function renderModal(app) {
   }
 
   else if (S.modal === 'monthly_doc_note') {
-    const { mpId, docId, label, note: initNote, driveUrl: initUrl } = S.modalData;
+    const { mpId, mym, docId, label, note: initNote, driveUrl: initUrl, monthly } = S.modalData;
     modal.appendChild(div({ className: 'modal-header' }, [
       div({ className: 'modal-title display' }, [label]),
       btn({ className: 'modal-close', onClick: () => setState({ modal: null, modalData: null }) }, ['×']),
     ]));
-    const noteInp   = inp({ className: 'input', placeholder: 'Ghi chú...', value: initNote, style: { marginBottom: 10 } });
-    const driveInp  = inp({ className: 'input', placeholder: 'Link Google Drive...', value: initUrl });
+    const noteInp  = inp({ className: 'input', placeholder: 'Ghi chú...', value: initNote, style: { marginBottom: 10 } });
+    const driveInp = inp({ className: 'input', placeholder: 'Link Google Drive...', value: initUrl });
     modal.appendChild(el('label', { className: 'input-label' }, ['Ghi chú'])); modal.appendChild(noteInp);
     modal.appendChild(el('label', { className: 'input-label', style: { marginTop: 10 } }, ['Link Drive'])); modal.appendChild(driveInp);
     modal.appendChild(div({ style: { display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 14 } }, [
@@ -2279,10 +2355,19 @@ function renderModal(app) {
       btn({ className: 'btn btn-primary', onClick: async () => {
         const ml = getMonthlyProjects();
         const mpi = ml.find(x => x.id === mpId);
-        if (!mpi.docs) mpi.docs = {};
-        mpi.docs[docId] = { ...mpi.docs[docId], note: noteInp.value.trim(), driveUrl: driveInp.value.trim() };
-        saveMonthlyProjects(ml);
-        await syncPush();
+        if (monthly && mym) {
+          // Per-month doc
+          if (!mpi.months) mpi.months = [];
+          let mr = mpi.months.find(m => m.ym === mym);
+          if (!mr) { mr = { ym: mym, status: 'pending', paid: false, docs: {} }; mpi.months.push(mr); }
+          if (!mr.docs) mr.docs = {};
+          mr.docs[docId] = { ...mr.docs[docId], note: noteInp.value.trim(), driveUrl: driveInp.value.trim() };
+        } else {
+          // One-time doc
+          if (!mpi.docs) mpi.docs = {};
+          mpi.docs[docId] = { ...mpi.docs[docId], note: noteInp.value.trim(), driveUrl: driveInp.value.trim() };
+        }
+        saveMonthlyProjects(ml); await syncPush();
         setState({ modal: null, modalData: null });
         showToast('✅ Đã lưu');
       }}, ['Lưu']),
