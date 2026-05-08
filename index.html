@@ -1041,7 +1041,9 @@ function renderProjectCard(wrap, p, isArchived = false) {
     if (p.deadline) {
       const daysLeft = Math.round((new Date(p.deadline) - new Date()) / 86400000);
       const color = daysLeft < 0 ? 'var(--red)' : daysLeft <= 3 ? 'var(--yellow)' : 'var(--text3)';
-      bot.appendChild(span({ style: { fontSize: 12, color } }, ['📅 ' + (daysLeft < 0 ? 'Quá hạn ' + Math.abs(daysLeft) + 'n' : 'Còn ' + daysLeft + ' ngày')]));
+      const deadlineStr = new Date(p.deadline).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      const daysStr = daysLeft < 0 ? ' · Quá hạn ' + Math.abs(daysLeft) + 'n' : daysLeft === 0 ? ' · Hôm nay!' : ' · Còn ' + daysLeft + 'n';
+      bot.appendChild(span({ style: { fontSize: 12, color } }, ['📅 ' + deadlineStr + daysStr]));
     }
     // Archive / unarchive quick button
     const archiveBtn = btn({
