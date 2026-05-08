@@ -1052,6 +1052,27 @@ function renderProjectCard(wrap, p, isArchived = false) {
         const icon = roundDate ? '⏰' : '📅';
         bot.appendChild(span({ style: { fontSize: 12, color, fontWeight: daysLeft <= 3 ? 600 : 400 } }, [icon + ' ' + dateStr + daysStr]));
       }
+    } else if (activeRound && p.status !== 'done' && p.status !== 'archived') {
+      // No deadline set — show quick date picker inline
+      const setDeadlineWrap = div({ style: { display: 'flex', alignItems: 'center', gap: 4 } });
+      const dateI = inp({ type: 'date', style: { fontSize: 11, padding: '2px 6px', borderRadius: 4, border: '1px dashed var(--border)', color: 'var(--text3)', background: 'none', cursor: 'pointer', width: 110 },
+        onClick: e => e.stopPropagation(),
+        onChange: async e => {
+          e.stopPropagation();
+          const val = e.target.value;
+          if (!val) return;
+          const projects = getProjects();
+          const pidx = projects.findIndex(x => x.id === p.id);
+          if (pidx === -1) return;
+          const ri = projects[pidx].rounds.findIndex(r => r === activeRound || (r.label === activeRound.label && r.pkg === activeRound.pkg));
+          if (ri !== -1) projects[pidx].rounds[ri].date = val;
+          await saveAndSync(projects);
+          render();
+        },
+      });
+      setDeadlineWrap.appendChild(span({ style: { fontSize: 11, color: 'var(--text3)' } }, ['⏰']));
+      setDeadlineWrap.appendChild(dateI);
+      bot.appendChild(setDeadlineWrap);
     }
     // Archive / unarchive quick button
     const archiveBtn = btn({
