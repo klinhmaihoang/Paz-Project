@@ -1039,8 +1039,11 @@ function renderProjectCard(wrap, p, isArchived = false) {
     if (totalAmt) bot.appendChild(span({ style: { fontSize: 12, color: 'var(--text2)' } }, ['💰 ' + fmtMoney(totalAmt)]));
     bot.appendChild(span({ style: { fontSize: 12, color: pctCollected >= 100 ? 'var(--green)' : 'var(--text3)' } }, ['📥 Thu ' + pctCollected + '%']));
 
-    // Show active round deadline (priority) or project deadline
-    const roundDate = activeRound?.date || null;
+    // Find nearest deadline: check ALL rounds (not just activeRound), pick closest future date
+    const now = new Date();
+    const roundsWithDate = rounds.filter(r => r.date && r.date.trim() && r.status !== 'done');
+    const nearestRound = roundsWithDate.sort((a, b) => new Date(a.date) - new Date(b.date))[0] || null;
+    const roundDate = nearestRound?.date || null;
     const deadlineSrc = (roundDate && roundDate.trim()) ? roundDate : (p.deadline && p.deadline.trim()) ? p.deadline : null;
     if (deadlineSrc) {
       const d = new Date(deadlineSrc);
