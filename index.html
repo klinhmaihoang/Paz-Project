@@ -1038,12 +1038,17 @@ function renderProjectCard(wrap, p, isArchived = false) {
     const bot = div({ style: { display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' } });
     if (totalAmt) bot.appendChild(span({ style: { fontSize: 12, color: 'var(--text2)' } }, ['💰 ' + fmtMoney(totalAmt)]));
     bot.appendChild(span({ style: { fontSize: 12, color: pctCollected >= 100 ? 'var(--green)' : 'var(--text3)' } }, ['📥 Thu ' + pctCollected + '%']));
-    if (p.deadline) {
-      const daysLeft = Math.round((new Date(p.deadline) - new Date()) / 86400000);
+
+    // Show active round deadline (priority) or project deadline
+    const roundDate = activeRound?.date;
+    const deadlineSrc = roundDate || p.deadline;
+    if (deadlineSrc) {
+      const daysLeft = Math.round((new Date(deadlineSrc) - new Date()) / 86400000);
       const color = daysLeft < 0 ? 'var(--red)' : daysLeft <= 3 ? 'var(--yellow)' : 'var(--text3)';
-      const deadlineStr = new Date(p.deadline).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
-      const daysStr = daysLeft < 0 ? ' · Quá hạn ' + Math.abs(daysLeft) + 'n' : daysLeft === 0 ? ' · Hôm nay!' : ' · Còn ' + daysLeft + 'n';
-      bot.appendChild(span({ style: { fontSize: 12, color } }, ['📅 ' + deadlineStr + daysStr]));
+      const dateStr = new Date(deadlineSrc).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
+      const daysStr = daysLeft < 0 ? ' Quá hạn ' + Math.abs(daysLeft) + 'n' : daysLeft === 0 ? ' Hôm nay!' : ' Còn ' + daysLeft + 'n';
+      const label = roundDate ? '⏰ ' + dateStr + ' ·' + daysStr : '📅 ' + dateStr + ' ·' + daysStr;
+      bot.appendChild(span({ style: { fontSize: 12, color, fontWeight: daysLeft <= 3 ? 600 : 400 } }, [label]));
     }
     // Archive / unarchive quick button
     const archiveBtn = btn({
