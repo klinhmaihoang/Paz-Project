@@ -1040,15 +1040,18 @@ function renderProjectCard(wrap, p, isArchived = false) {
     bot.appendChild(span({ style: { fontSize: 12, color: pctCollected >= 100 ? 'var(--green)' : 'var(--text3)' } }, ['📥 Thu ' + pctCollected + '%']));
 
     // Show active round deadline (priority) or project deadline
-    const roundDate = activeRound?.date;
-    const deadlineSrc = roundDate || p.deadline;
+    const roundDate = activeRound?.date || null;
+    const deadlineSrc = (roundDate && roundDate.trim()) ? roundDate : (p.deadline && p.deadline.trim()) ? p.deadline : null;
     if (deadlineSrc) {
-      const daysLeft = Math.round((new Date(deadlineSrc) - new Date()) / 86400000);
-      const color = daysLeft < 0 ? 'var(--red)' : daysLeft <= 3 ? 'var(--yellow)' : 'var(--text3)';
-      const dateStr = new Date(deadlineSrc).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
-      const daysStr = daysLeft < 0 ? ' Quá hạn ' + Math.abs(daysLeft) + 'n' : daysLeft === 0 ? ' Hôm nay!' : ' Còn ' + daysLeft + 'n';
-      const label = roundDate ? '⏰ ' + dateStr + ' ·' + daysStr : '📅 ' + dateStr + ' ·' + daysStr;
-      bot.appendChild(span({ style: { fontSize: 12, color, fontWeight: daysLeft <= 3 ? 600 : 400 } }, [label]));
+      const d = new Date(deadlineSrc);
+      if (!isNaN(d)) {
+        const daysLeft = Math.round((d - new Date()) / 86400000);
+        const color = daysLeft < 0 ? 'var(--red)' : daysLeft <= 3 ? 'var(--yellow)' : 'var(--text3)';
+        const dateStr = d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
+        const daysStr = daysLeft < 0 ? ' · Quá hạn ' + Math.abs(daysLeft) + 'n' : daysLeft === 0 ? ' · Hôm nay!' : ' · Còn ' + daysLeft + 'n';
+        const icon = roundDate ? '⏰' : '📅';
+        bot.appendChild(span({ style: { fontSize: 12, color, fontWeight: daysLeft <= 3 ? 600 : 400 } }, [icon + ' ' + dateStr + daysStr]));
+      }
     }
     // Archive / unarchive quick button
     const archiveBtn = btn({
@@ -1344,7 +1347,7 @@ function renderOverviewTab(wrap, p) {
           fontSize: 12, fontWeight: 700, color: 'var(--accent)', marginBottom: 8,
           paddingBottom: 6, borderBottom: '1px solid var(--border)',
           display: 'flex', alignItems: 'center', gap: 4,
-        } }, ['🎨 ' + pkgName + (pkgRounds.length ? ` (${pkgRounds.length} rounds)` : '')]));
+        } }, ['🎨 ' + pkgName]));
         if (pkgRounds.length) {
           pkgSection.appendChild(renderRoundsTimeline(pkgRounds));
         } else {
