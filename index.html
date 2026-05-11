@@ -2126,6 +2126,20 @@ function renderModal(app) {
       pkgList.innerHTML = '';
       customPkgs.forEach((pkg, i) => {
         const row = div({ style: { display: 'flex', gap: 6, alignItems: 'center' } });
+
+        // Up/down reorder buttons
+        const reorder = div({ style: { display: 'flex', flexDirection: 'column', gap: 2, flexShrink: 0 } });
+        const upBtn = btn({
+          style: { background: 'none', border: 'none', cursor: i === 0 ? 'default' : 'pointer', color: i === 0 ? 'var(--border)' : 'var(--text3)', fontSize: 10, padding: '1px 4px', lineHeight: 1 },
+          onClick: () => { if (i === 0) return; [customPkgs[i-1], customPkgs[i]] = [customPkgs[i], customPkgs[i-1]]; renderPkgRows(); },
+        }, ['▲']);
+        const dnBtn = btn({
+          style: { background: 'none', border: 'none', cursor: i === customPkgs.length-1 ? 'default' : 'pointer', color: i === customPkgs.length-1 ? 'var(--border)' : 'var(--text3)', fontSize: 10, padding: '1px 4px', lineHeight: 1 },
+          onClick: () => { if (i === customPkgs.length-1) return; [customPkgs[i], customPkgs[i+1]] = [customPkgs[i+1], customPkgs[i]]; renderPkgRows(); },
+        }, ['▼']);
+        reorder.appendChild(upBtn); reorder.appendChild(dnBtn);
+        row.appendChild(reorder);
+
         const nameI = inp({
           className: 'input', placeholder: 'Tên hạng mục (vd: Logo, Bảng hiệu...)',
           value: pkg.name, style: { flex: 1 },
@@ -2133,17 +2147,20 @@ function renderModal(app) {
         });
         const countI = inp({
           className: 'input', type: 'number', min: 1, max: 10,
-          value: pkg.roundCount || 4, style: { width: 80, textAlign: 'center' },
+          value: pkg.roundCount || 4, style: { width: 72, textAlign: 'center' },
           onInput: e => { customPkgs[i].roundCount = Number(e.target.value) || 4; },
         });
         const countWrap = div({ style: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, flexShrink: 0 } });
         countWrap.appendChild(countI);
         countWrap.appendChild(div({ style: { fontSize: 10, color: 'var(--text3)', whiteSpace: 'nowrap' } }, ['rounds']));
+
+        // Delete — always shown, just dimmed on single item
         const delBtn = btn({
           className: 'btn btn-ghost btn-sm',
-          style: { color: 'var(--text3)', padding: '6px 8px', flexShrink: 0, visibility: customPkgs.length > 1 ? 'visible' : 'hidden' },
-          onClick: () => { customPkgs.splice(i, 1); renderPkgRows(); },
-        }, ['✕']);
+          style: { color: customPkgs.length === 1 ? 'var(--border)' : 'var(--red)', padding: '6px 8px', flexShrink: 0 },
+          onClick: () => { if (customPkgs.length === 1) { customPkgs[0] = { name: '', roundCount: 4 }; renderPkgRows(); return; } customPkgs.splice(i, 1); renderPkgRows(); },
+        }, ['🗑']);
+
         row.appendChild(nameI); row.appendChild(countWrap); row.appendChild(delBtn);
         pkgList.appendChild(row);
       });
