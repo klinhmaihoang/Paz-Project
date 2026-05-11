@@ -1048,7 +1048,9 @@ function renderProjectCard(wrap, p, isArchived = false) {
     if (deadlineSrc) {
       const d = new Date(deadlineSrc);
       if (!isNaN(d)) {
-        const daysLeft = Math.round((d - new Date()) / 86400000);
+        const today = new Date(); today.setHours(0,0,0,0);
+        const dl = new Date(d); dl.setHours(0,0,0,0);
+        const daysLeft = Math.round((dl - today) / 86400000);
         const color = daysLeft < 0 ? 'var(--red)' : daysLeft <= 3 ? 'var(--yellow)' : 'var(--text3)';
         const dateStr = d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
         const daysStr = daysLeft < 0 ? ' · Quá hạn ' + Math.abs(daysLeft) + 'n' : daysLeft === 0 ? ' · Hôm nay!' : ' · Còn ' + daysLeft + 'n';
@@ -1499,7 +1501,9 @@ function renderPaymentsTab(wrap, p) {
     const labelWrap = div({ style: { flex: 1 } });
     labelWrap.appendChild(div({ style: { fontSize: 13, fontWeight: 600, color: pay.paid ? 'var(--text3)' : 'var(--text1)', textDecoration: pay.paid ? 'line-through' : 'none', marginBottom: 2 }}, [pay.label]));
     if (pay.dueDate && !pay.paid) {
-      const daysLeft = Math.round((new Date(pay.dueDate) - new Date()) / 86400000);
+      const _today = new Date(); _today.setHours(0,0,0,0);
+      const _due = new Date(pay.dueDate); _due.setHours(0,0,0,0);
+      const daysLeft = Math.round((_due - _today) / 86400000);
       const color = daysLeft < 0 ? 'var(--red)' : daysLeft <= 3 ? 'var(--yellow)' : 'var(--text3)';
       labelWrap.appendChild(div({ style: { fontSize: 11, color } }, [daysLeft < 0 ? '⚠️ Quá hạn ' + Math.abs(daysLeft) + ' ngày' : '📅 Hạn: ' + fmtDate(pay.dueDate) + (daysLeft <= 3 ? ' (còn ' + daysLeft + ' ngày)' : '')]));
     }
