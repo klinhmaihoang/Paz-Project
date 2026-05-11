@@ -1400,26 +1400,35 @@ function renderOverviewTab(wrap, p) {
 
 // ── Payments Tab ───────────────────────────────────────────────────────────────
 function renderPaymentsTab(wrap, p) {
-  const totalAmt = Number(p.contractValue) || 0;
+  const baseAmt   = Number(p.contractValue) || 0;
   const totalBefore = Number(p.contractValueBeforeVat) || 0;
-  const vatRate = p.vatRate ?? 10;
-  const vatAmt = totalBefore ? Math.round(totalBefore * vatRate / 100) : (totalAmt && vatRate ? Math.round(totalAmt - totalAmt / (1 + vatRate / 100)) : 0);
-  const totalPaid = (p.payments || []).filter(x => x.paid).reduce((s, x) => s + (Number(x.amount) || 0), 0);
-  const remaining = totalAmt - totalPaid;
+  const vatRate   = p.vatRate ?? 10;
+  const vatAmt    = totalBefore ? Math.round(totalBefore * vatRate / 100) : (baseAmt && vatRate ? Math.round(baseAmt - baseAmt / (1 + vatRate / 100)) : 0);
 
+  // Extra charges
+  const extras    = p.extraCharges || [];
+  const extraTotal = extras.reduce((s, x) => s + (Number(x.amount) || 0), 0);
+  const grandTotal = baseAmt + extraTotal;
+
+  const totalPaid = (p.payments || []).filter(x => x.paid).reduce((s, x) => s + (Number(x.amount) || 0), 0);
+  const remaining = grandTotal - totalPaid;
+
+  // ── Summary card ─────────────────────────────────────────────────────────────
   const sumCard = div({ style: { background: 'var(--surface)', borderRadius: 'var(--r12)', border: '1px solid var(--border)', padding: 16, marginBottom: 12 } });
 
-  // VAT breakdown row (only if has pricing)
-  if (totalAmt || totalBefore) {
-    const vatRow = div({ style: { background: 'var(--surface2)', borderRadius: 'var(--r8)', padding: '10px 12px', marginBottom: 12, fontSize: 12 } });
+  // VAT breakdown
+  if (baseAmt || totalBefore) {
+    const vatRow = div({ style: { background: 'var(--surface2)', borderRadius: 'var(--r8)', padding: '10px 12px', marginBottom: 10, fontSize: 12 } });
     const rows = [];
     if (totalBefore) rows.push({ label: 'Giá chưa thuế', value: fmtMoney(totalBefore), bold: false });
-    if (vatRate > 0) rows.push({ label: `Thuế GTGT (${vatRate}%)`, value: fmtMoney(vatAmt), bold: false });
-    if (totalAmt) rows.push({ label: 'Giá đã có thuế', value: fmtMoney(totalAmt), bold: true });
+    if (vatRate > 0)  rows.push({ label: `Thuế GTGT (${vatRate}%)`, value: fmtMoney(vatAmt), bold: false });
+    if (baseAmt)      rows.push({ label: 'Giá HĐ (đã VAT)', value: fmtMoney(baseAmt), bold: false });
+    if (extraTotal)   rows.push({ label: '⚡ Chi phí phát sinh', value: '+' + fmtMoney(extraTotal), bold: false, color: 'var(--accent)' });
+    rows.push({ label: 'Tổng cộng', value: fmtMoney(grandTotal), bold: true });
     rows.forEach(r => {
       const row = div({ style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 } });
-      row.appendChild(span({ style: { color: 'var(--text3)' } }, [r.label]));
-      row.appendChild(span({ style: { fontWeight: r.bold ? 700 : 500, color: r.bold ? 'var(--text1)' : 'var(--text2)', fontFamily: r.bold ? 'var(--font-display)' : 'inherit' } }, [r.value]));
+      row.appendChild(span({ style: { color: r.color || 'var(--text3)' } }, [r.label]));
+      row.appendChild(span({ style: { fontWeight: r.bold ? 700 : 500, color: r.bold ? 'var(--text1)' : (r.color || 'var(--text2)'), fontFamily: r.bold ? 'var(--font-display)' : 'inherit' } }, [r.value]));
       vatRow.appendChild(row);
     });
     sumCard.appendChild(vatRow);
@@ -1427,9 +1436,9 @@ function renderPaymentsTab(wrap, p) {
 
   const sumGrid = div({ style: { display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10 } });
   [
-    { label: 'Tổng HĐ', value: fmtMoney(totalAmt), color: 'var(--text1)' },
-    { label: 'Đã thu', value: fmtMoney(totalPaid), color: 'var(--green)' },
-    { label: 'Còn lại', value: fmtMoney(remaining), color: remaining > 0 ? 'var(--accent)' : 'var(--text3)' },
+    { label: 'Tổng cộng', value: fmtMoney(grandTotal), color: 'var(--text1)' },
+    { label: 'Đã thu',    value: fmtMoney(totalPaid),  color: 'var(--green)' },
+    { label: 'Còn lại',   value: fmtMoney(remaining),  color: remaining > 0 ? 'var(--accent)' : 'var(--text3)' },
   ].forEach(s => {
     const c = div({ style: { textAlign: 'center' } });
     c.appendChild(div({ style: { fontSize: 15, fontWeight: 700, color: s.color, fontFamily: 'var(--font-display)' } }, [s.value]));
@@ -1439,6 +1448,40 @@ function renderPaymentsTab(wrap, p) {
   sumCard.appendChild(sumGrid);
   wrap.appendChild(sumCard);
 
+  // ── Extra charges card ───────────────────────────────────────────────────────
+  const extraCard = div({ style: { background: 'var(--surface)', borderRadius: 'var(--r12)', border: '1px solid var(--border)', padding: 16, marginBottom: 12 } });
+  const extraHeader = div({ className: 'section-header' });
+  extraHeader.appendChild(div({ className: 'section-title' }, ['⚡ Chi phí phát sinh']));
+  extraHeader.appendChild(btn({ className: 'btn btn-ghost btn-sm', style: { color: 'var(--accent)' }, onClick: () => setState({ modal: 'add_extra_charge' }) }, ['+ Thêm']));
+  extraCard.appendChild(extraHeader);
+
+  if (!extras.length) {
+    extraCard.appendChild(div({ style: { fontSize: 12, color: 'var(--text3)', fontStyle: 'italic' } }, ['Chưa có chi phí phát sinh']));
+  } else {
+    extras.forEach((ex, i) => {
+      const row = div({ style: { display: 'flex', alignItems: 'flex-start', gap: 10, padding: '8px 0', borderBottom: i < extras.length - 1 ? '1px solid var(--border)' : 'none' } });
+      const info = div({ style: { flex: 1 } });
+      info.appendChild(div({ style: { fontSize: 13, fontWeight: 600 } }, [ex.label]));
+      if (ex.reason) info.appendChild(div({ style: { fontSize: 11, color: 'var(--text3)', marginTop: 2 } }, [ex.reason]));
+      if (ex.roundRef) info.appendChild(div({ style: { fontSize: 11, color: 'var(--blue)', marginTop: 2 } }, ['📎 ' + ex.roundRef]));
+      row.appendChild(info);
+      row.appendChild(div({ style: { fontWeight: 700, fontSize: 14, color: 'var(--accent)', fontFamily: 'var(--font-display)', flexShrink: 0 } }, [fmtMoney(ex.amount)]));
+      row.appendChild(btn({ className: 'btn btn-ghost btn-sm', style: { color: 'var(--text3)', flexShrink: 0 }, onClick: async () => {
+        const projects = getProjects();
+        const pidx = projects.findIndex(x => x.id === S.selectedId);
+        if (pidx === -1) return;
+        projects[pidx].extraCharges = (projects[pidx].extraCharges || []).filter((_, j) => j !== i);
+        await saveAndSync(projects); render();
+      }}, ['🗑']));
+      extraCard.appendChild(row);
+    });
+    extraCard.appendChild(div({ style: { display: 'flex', justifyContent: 'flex-end', paddingTop: 8, borderTop: '1px solid var(--border)', marginTop: 4 } }, [
+      span({ style: { fontSize: 13, fontWeight: 700, color: 'var(--accent)' } }, ['Tổng phát sinh: ' + fmtMoney(extraTotal)]),
+    ]));
+  }
+  wrap.appendChild(extraCard);
+
+  // ── Payment installments ─────────────────────────────────────────────────────
   const payCard = div({ style: { background: 'var(--surface)', borderRadius: 'var(--r12)', border: '1px solid var(--border)', padding: 16 } });
   const payHeader = div({ className: 'section-header' });
   payHeader.appendChild(div({ className: 'section-title' }, ['Đợt thanh toán']));
@@ -1449,71 +1492,34 @@ function renderPaymentsTab(wrap, p) {
     const row = div({ style: {
       background: pay.paid ? 'var(--green-bg)' : 'var(--surface)',
       border: '1px solid ' + (pay.paid ? 'var(--green)' : 'var(--border)'),
-      borderRadius: 'var(--r12)',
-      padding: '12px 14px',
-      marginBottom: 10,
-      display: 'flex',
-      flexDirection: 'column',
-      gap: 10,
+      borderRadius: 'var(--r12)', padding: '12px 14px', marginBottom: 10,
+      display: 'flex', flexDirection: 'column', gap: 10,
     }});
-
-    // Top: label + amount
     const top = div({ style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 } });
     const labelWrap = div({ style: { flex: 1 } });
-    labelWrap.appendChild(div({ style: {
-      fontSize: 13, fontWeight: 600,
-      color: pay.paid ? 'var(--text3)' : 'var(--text1)',
-      textDecoration: pay.paid ? 'line-through' : 'none',
-      marginBottom: 2,
-    }}, [pay.label]));
+    labelWrap.appendChild(div({ style: { fontSize: 13, fontWeight: 600, color: pay.paid ? 'var(--text3)' : 'var(--text1)', textDecoration: pay.paid ? 'line-through' : 'none', marginBottom: 2 }}, [pay.label]));
     if (pay.dueDate && !pay.paid) {
       const daysLeft = Math.round((new Date(pay.dueDate) - new Date()) / 86400000);
       const color = daysLeft < 0 ? 'var(--red)' : daysLeft <= 3 ? 'var(--yellow)' : 'var(--text3)';
-      labelWrap.appendChild(div({ style: { fontSize: 11, color } }, [
-        daysLeft < 0 ? '⚠️ Quá hạn ' + Math.abs(daysLeft) + ' ngày' : '📅 Hạn: ' + fmtDate(pay.dueDate) + (daysLeft <= 3 ? ' (còn ' + daysLeft + ' ngày)' : '')
-      ]));
+      labelWrap.appendChild(div({ style: { fontSize: 11, color } }, [daysLeft < 0 ? '⚠️ Quá hạn ' + Math.abs(daysLeft) + ' ngày' : '📅 Hạn: ' + fmtDate(pay.dueDate) + (daysLeft <= 3 ? ' (còn ' + daysLeft + ' ngày)' : '')]));
     }
-    if (pay.paid && pay.paidAt) {
-      labelWrap.appendChild(div({ style: { fontSize: 11, color: 'var(--green)', fontWeight: 500 } }, ['✅ Đã thu ngày ' + fmtDate(pay.paidAt)]));
-    }
+    if (pay.paid && pay.paidAt) labelWrap.appendChild(div({ style: { fontSize: 11, color: 'var(--green)', fontWeight: 500 } }, ['✅ Đã thu ' + fmtDate(pay.paidAt)]));
     top.appendChild(labelWrap);
-    top.appendChild(div({ style: {
-      fontWeight: 700, fontSize: 16,
-      color: pay.paid ? 'var(--green)' : 'var(--accent)',
-      fontFamily: 'var(--font-display)',
-      flexShrink: 0,
-    }}, [fmtMoney(pay.amount)]));
+    top.appendChild(div({ style: { fontWeight: 700, fontSize: 16, color: pay.paid ? 'var(--green)' : 'var(--accent)', fontFamily: 'var(--font-display)', flexShrink: 0 }}, [fmtMoney(pay.amount)]));
     row.appendChild(top);
-
-    // Bottom: action button
-    const markBtn = btn({
-      style: {
-        width: '100%',
-        padding: '9px',
-        borderRadius: 'var(--r8)',
-        border: 'none',
-        fontSize: 13,
-        fontWeight: 600,
-        cursor: 'pointer',
-        fontFamily: 'var(--font-body)',
-        background: pay.paid ? 'rgba(0,0,0,0.06)' : 'var(--green)',
-        color: pay.paid ? 'var(--text3)' : 'white',
-        transition: 'all .15s',
-      },
+    row.appendChild(btn({
+      style: { width: '100%', padding: '9px', borderRadius: 'var(--r8)', border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-body)', background: pay.paid ? 'rgba(0,0,0,0.06)' : 'var(--green)', color: pay.paid ? 'var(--text3)' : 'white', transition: 'all .15s' },
       onClick: async () => {
         const projects = getProjects();
         const pidx = projects.findIndex(x => x.id === S.selectedId);
+        if (pidx === -1) return;
         const wasPaid = projects[pidx].payments[i].paid;
         projects[pidx].payments[i].paid = !wasPaid;
         projects[pidx].payments[i].paidAt = !wasPaid ? new Date().toISOString() : null;
-        if (!wasPaid) tgNotify(`💰 <b>Paz Project</b> — Đã thu tiền!\n\n📁 <b>${p.name}</b>\n👤 ${p.client}\n💵 ${fmtMoney(pay.amount)} (${pay.label})`);
-        await saveAndSync(projects);
-        showToast(!wasPaid ? '✅ Đã ghi nhận thanh toán!' : '↩️ Đã hoàn tác');
-        render();
+        if (!wasPaid) tgNotify(`💰 <b>Paz Project</b> — Đã thu!\n\n📁 <b>${p.name}</b>\n👤 ${p.client}\n💵 ${fmtMoney(pay.amount)} (${pay.label})`);
+        await saveAndSync(projects); showToast(!wasPaid ? '✅ Đã ghi nhận!' : '↩️ Đã hoàn tác'); render();
       }
-    }, [pay.paid ? '↩️ Hoàn tác (chưa thu)' : '💰 Đánh dấu đã thu']);
-    row.appendChild(markBtn);
-
+    }, [pay.paid ? '↩️ Hoàn tác' : '💰 Đánh dấu đã thu']));
     payCard.appendChild(row);
   });
   if (!(p.payments || []).length) payCard.appendChild(div({ style: { color: 'var(--text3)', fontSize: 13 } }, ['Chưa có đợt thanh toán nào']));
@@ -2717,6 +2723,46 @@ function renderModal(app) {
         setState({ modal: null, modalData: null });
         showToast('✅ Đã lưu');
       }}, ['Lưu']),
+    ]));
+  }
+
+  else if (S.modal === 'add_extra_charge') {
+    const p = getSelectedProject();
+    modal.appendChild(div({ className: 'modal-header' }, [
+      div({ className: 'modal-title display' }, ['⚡ Thêm chi phí phát sinh']),
+      btn({ className: 'modal-close', onClick: () => setState({ modal: null }) }, ['×']),
+    ]));
+    const labelInp  = inp({ className: 'input', placeholder: 'Tên khoản (vd: Chỉnh sửa thêm R3)', style: { marginBottom: 10 } });
+    const amountInp = inp({ className: 'input', type: 'number', placeholder: 'Số tiền (đ)', style: { marginBottom: 10 } });
+    const reasonInp = inp({ className: 'input', placeholder: 'Lý do (vd: Vượt quá 2 lần chỉnh sửa theo HĐ)', style: { marginBottom: 10 } });
+
+    // Round reference picker
+    const rounds = (p?.rounds || []).filter(r => r.label);
+    const roundSel = el('select', { className: 'input', style: { marginBottom: 14 } }, [
+      el('option', { value: '' }, ['— Liên kết với round (tuỳ chọn) —']),
+      ...rounds.map(r => el('option', { value: r.label.replace(/^\[.*?\]\s*/, '') }, [r.label.replace(/^\[.*?\]\s*/, '')])),
+    ]);
+
+    modal.appendChild(el('label', { className: 'input-label' }, ['Tên khoản *'])); modal.appendChild(labelInp);
+    modal.appendChild(el('label', { className: 'input-label' }, ['Số tiền *']));    modal.appendChild(amountInp);
+    modal.appendChild(el('label', { className: 'input-label' }, ['Lý do']));        modal.appendChild(reasonInp);
+    modal.appendChild(el('label', { className: 'input-label' }, ['Round liên quan'])); modal.appendChild(roundSel);
+
+    modal.appendChild(div({ style: { display: 'flex', gap: 8, justifyContent: 'flex-end' } }, [
+      btn({ className: 'btn btn-secondary', onClick: () => setState({ modal: null }) }, ['Huỷ']),
+      btn({ className: 'btn btn-primary', onClick: async () => {
+        const label = labelInp.value.trim();
+        const amount = Number(amountInp.value);
+        if (!label || !amount) { showToast('❌ Nhập tên và số tiền!'); return; }
+        const projects = getProjects();
+        const pidx = projects.findIndex(x => x.id === S.selectedId);
+        if (pidx === -1) return;
+        if (!projects[pidx].extraCharges) projects[pidx].extraCharges = [];
+        projects[pidx].extraCharges.push({ label, amount, reason: reasonInp.value.trim(), roundRef: roundSel.value, createdAt: new Date().toISOString() });
+        await saveAndSync(projects);
+        setState({ modal: null });
+        showToast('⚡ Đã thêm chi phí phát sinh!');
+      }}, ['Thêm']),
     ]));
   }
 
