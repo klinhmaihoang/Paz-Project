@@ -882,11 +882,23 @@ function renderList(wrap) {
       const rounds = p.rounds || [];
       if (!rounds.length) return 0;
       const allDone = rounds.every(r => r.status === 'done');
-      if (allDone) return -1; // done
+      if (allDone) return -1;
+
+      // Find the active round
       const activeIdx = rounds.findIndex(r => r.status === 'inprogress' || r.status === 'review');
-      if (activeIdx !== -1) return activeIdx + 1;
-      const lastDone = rounds.map(r => r.status).lastIndexOf('done');
-      return lastDone + 2; // next round number (1-based)
+      const targetIdx = activeIdx !== -1 ? activeIdx : (() => {
+        const lastDone = rounds.map(r => r.status).lastIndexOf('done');
+        return lastDone + 1; // index of next pending round
+      })();
+      if (targetIdx < 0 || targetIdx >= rounds.length) return 0;
+
+      const targetRound = rounds[targetIdx];
+      const pkg = targetRound.pkg || null;
+
+      // Count position within same package (or all rounds if no packages)
+      const siblings = pkg ? rounds.filter(r => r.pkg === pkg) : rounds;
+      const posInPkg = siblings.findIndex(r => r === targetRound);
+      return posInPkg !== -1 ? posInPkg + 1 : targetIdx + 1;
     }
 
     function renderProjectList() {
