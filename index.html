@@ -847,7 +847,7 @@ function renderList(wrap) {
         const ok = await syncPull(); if (ok) { render(); showToast('☁️ Đã tải từ cloud!'); } else showToast('❌ Sync thất bại!');
       }}, ['☁️ Sync']));
     }
-    wrap.appendChild(toolbar);
+    // toolbar appended after round filter select is added below
 
     // ── Build dynamic group keys from all active projects ────────────────────
     // Key format: "pkg::N" (with pkg) or "::N" (no pkg), special: "done", "no_rounds"
@@ -892,26 +892,22 @@ function renderList(wrap) {
       return '⚡ ' + (pkg ? shortPkg + ' · R' + n : 'Round ' + n);
     }
 
-    // ── Round filter pills (dynamic) ──────────────────────────────────────────
-    const roundFilter = div({ style: { display: 'flex', gap: 5, flexWrap: 'wrap', marginBottom: 14 } });
+    // ── Round filter — compact dropdown ──────────────────────────────────────
     const allGroupKeys = buildGroupKeys(activeProjects);
     const curRF = S.filterRound || 'all_rounds';
 
-    // "Tất cả" pill
-    const allActive = curRF === 'all_rounds';
-    roundFilter.appendChild(btn({
-      style: { padding: '5px 12px', borderRadius: 100, fontSize: 12, fontWeight: allActive ? 700 : 400, border: 'none', cursor: 'pointer', background: allActive ? 'var(--accent)' : 'var(--surface2)', color: allActive ? '#fff' : 'var(--text2)', transition: 'all .12s' },
-      onClick: () => { S.filterRound = 'all_rounds'; renderProjectList(); },
-    }, ['Tất cả']));
-
-    allGroupKeys.forEach(key => {
-      const active = curRF === key;
-      roundFilter.appendChild(btn({
-        style: { padding: '5px 12px', borderRadius: 100, fontSize: 12, fontWeight: active ? 700 : 400, border: 'none', cursor: 'pointer', background: active ? 'var(--accent)' : 'var(--surface2)', color: active ? '#fff' : 'var(--text2)', transition: 'all .12s', whiteSpace: 'nowrap' },
-        onClick: () => { S.filterRound = key; renderProjectList(); },
-      }, [keyToLabel(key)]));
-    });
-    wrap.appendChild(roundFilter);
+    const roundFilterSel = el('select', {
+      className: 'input',
+      style: { width: 'auto', fontSize: 12, flex: '0 0 auto' },
+      onChange: e => { S.filterRound = e.target.value; renderProjectList(); },
+    }, [
+      el('option', { value: 'all_rounds' }, ['📊 Tất cả nhóm']),
+      ...allGroupKeys.map(key => el('option', { value: key, ...(curRF === key ? { selected: '' } : {}) }, [keyToLabel(key)])),
+    ]);
+    // Re-select current value after render
+    roundFilterSel.value = curRF;
+    toolbar.appendChild(roundFilterSel);
+    wrap.appendChild(toolbar);
 
     // ── Project list container ─────────────────────────────────────────────────
     const listContainer = div({ id: 'project-list-container' });
