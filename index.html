@@ -356,6 +356,7 @@ async function syncPush() {
     return true;
   } catch (e) {
     S.syncStatus = 'err';
+    S.syncError = e.message;
     updateSyncIndicator();
     return false;
   }
@@ -376,22 +377,22 @@ async function syncPull() {
     if (remote && Array.isArray(remote.projects)) {
       saveProjects(remote.projects);
       if (Array.isArray(remote.monthly)) saveMonthlyProjects(remote.monthly);
-      // Restore shared config (tgToken, tgChatId) to local if not set
       if (remote.sharedCfg) {
         const localCfg = getConfig();
         const merged = { ...remote.sharedCfg, ...localCfg, jsonbinKey: localCfg.jsonbinKey, jsonbinBin: localCfg.jsonbinBin };
-        // If local has no tg config but cloud has it, pull it in
         if (!localCfg.tgToken && remote.sharedCfg.tgToken) merged.tgToken = remote.sharedCfg.tgToken;
         if (!localCfg.tgChatId && remote.sharedCfg.tgChatId) merged.tgChatId = remote.sharedCfg.tgChatId;
         saveConfig(merged);
       }
       S.syncStatus = 'ok';
+      S.syncError = null;
       updateSyncIndicator();
       return true;
     }
     throw new Error('Invalid data');
   } catch (e) {
     S.syncStatus = 'err';
+    S.syncError = e.message;
     updateSyncIndicator();
     return false;
   }
@@ -743,11 +744,14 @@ function render() {
 
   // Sync indicator
   const syncMap = { idle: '', syncing: 'syncing', ok: 'ok', err: 'err' };
-  const syncLabelMap = { idle: 'Chưa sync', syncing: 'Đang sync…', ok: 'Đã sync', err: 'Lỗi sync' };
-  const syncWrap = div({ className: 'sync-indicator' }, [
+  const errMsg = S.syncStatus === 'err' ? (S.syncError || 'Lỗi') : '';
+  const errHint = errMsg.includes('401') ? ' · Key sai' : errMsg.includes('404') ? ' · Bin không tồn tại' : errMsg.includes('429') ? ' · Rate limit' : errMsg.includes('Failed') ? ' · Mất mạng' : errMsg ? ' · ' + errMsg : '';
+  const syncLabelMap = { idle: 'Chưa sync', syncing: 'Đang sync…', ok: 'Đã sync', err: 'Lỗi sync' + errHint };
+  const syncWrap = div({ className: 'sync-indicator', style: { cursor: S.syncStatus === 'err' ? 'pointer' : 'default' }, title: S.syncStatus === 'err' ? 'Bấm để thử lại' : '' }, [
     el('div', { id: 'sync-dot', className: 'sync-dot ' + (syncMap[S.syncStatus] || '') }),
     el('span', { id: 'sync-label' }, [syncLabelMap[S.syncStatus] || 'Chưa sync']),
   ]);
+  if (S.syncStatus === 'err') syncWrap.addEventListener('click', async () => { await syncPull(); render(); });
   hdr.appendChild(syncWrap);
 
   if (S.view === 'detail' || S.view === 'monthly_detail') {
@@ -1060,26 +1064,29 @@ function renderProjectCard(wrap, p, isArchived = false) {
         bot.appendChild(span({ style: { fontSize: 12, color, fontWeight: daysLeft <= 3 ? 600 : 400 } }, [icon + ' ' + dateStr + daysStr]));
       }
     } else if (activeRound && p.status !== 'done' && p.status !== 'archived') {
-      // No deadline set — show quick date picker inline
-      const setDeadlineWrap = div({ style: { display: 'flex', alignItems: 'center', gap: 4 } });
-      const dateI = inp({ type: 'date', style: { fontSize: 11, padding: '2px 6px', borderRadius: 4, border: '1px dashed var(--border)', color: 'var(--text3)', background: 'none', cursor: 'pointer', width: 110 },
-        onClick: e => e.stopPropagation(),
-        onChange: async e => {
+      // No deadline — show small icon, click to set
+      const deadlineBtn = btn({
+        style: { fontSize: 11, color: 'var(--border)', background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px', position: 'relative' },
+        title: 'Đặt deadline cho round này',
+        onClick: e => {
           e.stopPropagation();
-          const val = e.target.value;
-          if (!val) return;
-          const projects = getProjects();
-          const pidx = projects.findIndex(x => x.id === p.id);
-          if (pidx === -1) return;
-          const ri = projects[pidx].rounds.findIndex(r => r === activeRound || (r.label === activeRound.label && r.pkg === activeRound.pkg));
-          if (ri !== -1) projects[pidx].rounds[ri].date = val;
-          await saveAndSync(projects);
-          render();
+          const picker = inp({ type: 'date', style: { position: 'absolute', opacity: 0, width: 1, height: 1, top: 0, left: 0 } });
+          picker.addEventListener('change', async ev => {
+            const val = ev.target.value;
+            if (!val) return;
+            const projects = getProjects();
+            const pidx = projects.findIndex(x => x.id === p.id);
+            if (pidx === -1) return;
+            const ri = projects[pidx].rounds.findIndex(r => r.label === activeRound.label && r.pkg === activeRound.pkg);
+            if (ri !== -1) projects[pidx].rounds[ri].date = val;
+            await saveAndSync(projects);
+            render();
+          });
+          deadlineBtn.appendChild(picker);
+          picker.click();
         },
-      });
-      setDeadlineWrap.appendChild(span({ style: { fontSize: 11, color: 'var(--text3)' } }, ['⏰']));
-      setDeadlineWrap.appendChild(dateI);
-      bot.appendChild(setDeadlineWrap);
+      }, ['⏰']);
+      bot.appendChild(deadlineBtn);
     }
     // Archive / unarchive quick button
     const archiveBtn = btn({
