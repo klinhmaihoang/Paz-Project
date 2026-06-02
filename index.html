@@ -657,9 +657,14 @@ async function pollTelegram() {
 
 function startPolling() {
   if (pollingTimer) return;
-  // Get offset first
   const cfg = getConfig();
   if (!cfg.tgToken) return;
+
+  // Multi-tab lock: only one tab polls at a time
+  const lockKey = 'paz_polling_lock';
+  const myId = Date.now().toString();
+  localStorage.setItem(lockKey, myId);
+
   fetch(`https://api.telegram.org/bot${cfg.tgToken}/getUpdates?limit=1`)
     .then(r => r.json())
     .then(d => {
@@ -667,7 +672,19 @@ function startPolling() {
       tgLog('🟢 Bot đang lắng nghe lệnh...', 'info');
     }).catch(() => {});
 
-  pollingTimer = setInterval(pollTelegram, 3000);
+  pollingTimer = setInterval(() => {
+    // Check if another tab took the lock
+    if (localStorage.getItem(lockKey) !== myId) {
+      stopPolling();
+      tgLog('⏸ Tab khác đang chạy bot — dừng ở tab này.', 'info');
+      return;
+    }
+    // Pause when tab hidden
+    if (document.hidden) return;
+    // Renew lock
+    localStorage.setItem(lockKey, myId);
+    pollTelegram();
+  }, 3000);
   S.tgPolling = true;
 }
 
@@ -676,6 +693,14 @@ function stopPolling() {
   S.tgPolling = false;
   tgLog('🔴 Bot đã dừng.');
 }
+
+// Release lock when tab closes
+window.addEventListener('beforeunload', () => {
+  const lockKey = 'paz_polling_lock';
+  const myId = localStorage.getItem(lockKey);
+  // Only clear if this tab owns the lock (rough check)
+  if (pollingTimer) localStorage.removeItem(lockKey);
+});
 
 // ── Deadline checker ───────────────────────────────────────────────────────────
 function checkDeadlines() {
@@ -853,11 +878,10 @@ function renderList(wrap) {
     }
     // toolbar appended after round filter select is added below
 
-    // ── Build dynamic group keys from all active projects ────────────────────
-    // Key format: "pkg::N" (with pkg) or "::N" (no pkg), special: "done", "no_rounds"
+    // ── Group by round number only (ignore pkg name) ─────────────────────────
     function getActiveRoundKey(p) {
       const rounds = p.rounds || [];
-      if (!rounds.length) return '::0';
+      if (!rounds.length) return 'no_rounds';
       const allDone = rounds.every(r => r.status === 'done');
       if (allDone) return 'done';
       const activeIdx = rounds.findIndex(r => r.status === 'inprogress' || r.status === 'review');
@@ -865,50 +889,36 @@ function renderList(wrap) {
         const lastDone = rounds.map(r => r.status).lastIndexOf('done');
         return lastDone + 1;
       })();
-      if (targetIdx < 0 || targetIdx >= rounds.length) return '::0';
+      if (targetIdx < 0 || targetIdx >= rounds.length) return 'no_rounds';
       const targetRound = rounds[targetIdx];
       const pkg = targetRound.pkg || null;
       const siblings = pkg ? rounds.filter(r => r.pkg === pkg) : rounds;
       const posInPkg = siblings.findIndex(r => r === targetRound);
-      const roundNum = posInPkg !== -1 ? posInPkg + 1 : targetIdx + 1;
-      return (pkg || '') + '::' + roundNum;
+      const n = posInPkg !== -1 ? posInPkg + 1 : targetIdx + 1;
+      return n >= 4 ? 'r4plus' : 'r' + n;
     }
 
-    // Collect all unique group keys from visible projects (for pills)
-    function buildGroupKeys(projects) {
-      const keys = new Set();
-      projects.forEach(p => keys.add(getActiveRoundKey(p)));
-      // Sort: no_rounds last, done last, others by pkg then round number
-      return [...keys].sort((a, b) => {
-        if (a === 'done') return 1; if (b === 'done') return -1;
-        if (a === '::0') return 1;  if (b === '::0') return -1;
-        const [pkgA, nA] = a.split('::'); const [pkgB, nB] = b.split('::');
-        if (pkgA !== pkgB) return pkgA.localeCompare(pkgB);
-        return Number(nA) - Number(nB);
-      });
-    }
+    const GROUP_ORDER = ['r1','r2','r3','r4plus','done','no_rounds'];
+    const GROUP_META  = {
+      r1:       { label: '⚡ Round 1',       color: 'var(--accent)' },
+      r2:       { label: '⚡ Round 2',       color: 'var(--accent)' },
+      r3:       { label: '⚡ Round 3',       color: 'var(--accent)' },
+      r4plus:   { label: '⚡ Round 4+',      color: 'var(--accent)' },
+      done:     { label: '✅ Xong hết',      color: 'var(--green)'  },
+      no_rounds:{ label: '📋 Chưa bắt đầu', color: 'var(--text3)'  },
+    };
+    function keyToLabel(key) { return GROUP_META[key]?.label || key; }
 
-    function keyToLabel(key) {
-      if (key === 'done') return '✅ Xong hết';
-      if (key === '::0') return '📋 Chưa bắt đầu';
-      const [pkg, n] = key.split('::');
-      const shortPkg = pkg.length > 18 ? pkg.substring(0, 16) + '…' : pkg;
-      return '⚡ ' + (pkg ? shortPkg + ' · R' + n : 'Round ' + n);
-    }
-
-    // ── Round filter — compact dropdown ──────────────────────────────────────
-    const allGroupKeys = buildGroupKeys(activeProjects);
+    // ── Round filter dropdown ─────────────────────────────────────────────────
+    const usedKeys = [...new Set(activeProjects.map(getActiveRoundKey))].sort((a,b) => GROUP_ORDER.indexOf(a) - GROUP_ORDER.indexOf(b));
     const curRF = S.filterRound || 'all_rounds';
-
     const roundFilterSel = el('select', {
-      className: 'input',
-      style: { width: 'auto', fontSize: 12, flex: '0 0 auto' },
+      className: 'input', style: { fontSize: 12 },
       onChange: e => { S.filterRound = e.target.value; renderProjectList(); },
     }, [
       el('option', { value: 'all_rounds' }, ['📊 Tất cả nhóm']),
-      ...allGroupKeys.map(key => el('option', { value: key, ...(curRF === key ? { selected: '' } : {}) }, [keyToLabel(key)])),
+      ...usedKeys.map(key => el('option', { value: key, ...(curRF === key ? { selected: '' } : {}) }, [keyToLabel(key)])),
     ]);
-    // Re-select current value after render
     roundFilterSel.value = curRF;
     toolbar.appendChild(roundFilterSel);
     wrap.appendChild(toolbar);
@@ -941,18 +951,17 @@ function renderList(wrap) {
       }
 
       if (rf === 'all_rounds') {
-        // Group by dynamic key
         const groups = {};
         visible.forEach(p => {
           const key = getActiveRoundKey(p);
           if (!groups[key]) groups[key] = [];
           groups[key].push(p);
         });
-        const sortedKeys = buildGroupKeys(visible);
-        sortedKeys.forEach(key => {
+        GROUP_ORDER.forEach(key => {
           if (!groups[key]?.length) return;
-          const header = div({ style: { fontSize: 11, fontWeight: 700, color: key === 'done' ? 'var(--green)' : key === '::0' ? 'var(--text3)' : 'var(--accent)', textTransform: 'uppercase', letterSpacing: '.06em', padding: '6px 2px 6px', display: 'flex', alignItems: 'center', gap: 6 } });
-          header.appendChild(span({}, [keyToLabel(key)]));
+          const meta = GROUP_META[key];
+          const header = div({ style: { fontSize: 11, fontWeight: 700, color: meta.color, textTransform: 'uppercase', letterSpacing: '.06em', padding: '6px 2px', display: 'flex', alignItems: 'center', gap: 6 } });
+          header.appendChild(span({}, [meta.label]));
           header.appendChild(span({ style: { background: 'var(--surface2)', color: 'var(--text3)', borderRadius: 100, padding: '1px 7px', fontSize: 10, fontWeight: 600, letterSpacing: 0 } }, [String(groups[key].length)]));
           listContainer.appendChild(header);
           groups[key].forEach(p => renderProjectCard(listContainer, p));
