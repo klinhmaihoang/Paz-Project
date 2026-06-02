@@ -891,6 +891,12 @@ function renderList(wrap) {
       })();
       if (targetIdx < 0 || targetIdx >= rounds.length) return 'no_rounds';
       const targetRound = rounds[targetIdx];
+
+      // Moodboard check — label or pkg contains "moodboard"
+      const labelLower = (targetRound.label || '').toLowerCase();
+      const pkgLower   = (targetRound.pkg  || '').toLowerCase();
+      if (labelLower.includes('moodboard') || pkgLower.includes('moodboard')) return 'moodboard';
+
       const pkg = targetRound.pkg || null;
       const siblings = pkg ? rounds.filter(r => r.pkg === pkg) : rounds;
       const posInPkg = siblings.findIndex(r => r === targetRound);
@@ -898,8 +904,9 @@ function renderList(wrap) {
       return n >= 4 ? 'r4plus' : 'r' + n;
     }
 
-    const GROUP_ORDER = ['r1','r2','r3','r4plus','done','no_rounds'];
+    const GROUP_ORDER = ['moodboard','r1','r2','r3','r4plus','done','no_rounds'];
     const GROUP_META  = {
+      moodboard:{ label: '🎨 Moodboard',     color: '#7c3aed'       },
       r1:       { label: '⚡ Round 1',       color: 'var(--accent)' },
       r2:       { label: '⚡ Round 2',       color: 'var(--accent)' },
       r3:       { label: '⚡ Round 3',       color: 'var(--accent)' },
