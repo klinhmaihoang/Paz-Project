@@ -69,6 +69,9 @@ body { font-family: var(--font-body); background: var(--bg); color: var(--text1)
 .modal-close { background: none; border: none; font-size: 22px; cursor: pointer; color: var(--text3); line-height: 1; padding: 4px; border-radius: 4px; }
 .modal-close:hover { color: var(--text1); background: var(--surface2); }
 .card { background: var(--surface); border-radius: var(--r12); border: 1px solid var(--border); box-shadow: var(--s1); padding: 16px; margin-bottom: 10px; cursor: pointer; transition: box-shadow .15s, transform .1s; }
+.card[draggable="true"] { cursor: grab; }
+.card[draggable="true"]:hover { box-shadow: 0 4px 20px rgba(0,0,0,.12); transform: translateY(-1px); }
+.card[draggable="true"]:active { cursor: grabbing; }
 .card:hover { box-shadow: var(--s2); transform: translateY(-1px); }
 .badge { display: inline-flex; align-items: center; padding: 3px 8px; border-radius: 100px; font-size: 11px; font-weight: 600; }
 .s-new { background: var(--blue-bg); color: var(--blue); }
@@ -934,6 +937,9 @@ function renderList(wrap) {
     const listContainer = div({ id: 'project-list-container' });
     wrap.appendChild(listContainer);
 
+    // ── Drag state ────────────────────────────────────────────────────────────
+    let dragProjectId = null;
+
     function renderProjectList() {
       listContainer.innerHTML = '';
       let visible = activeProjects.slice();
@@ -942,11 +948,8 @@ function renderList(wrap) {
         const q = S.search.toLowerCase();
         visible = visible.filter(p => (p.name || '').toLowerCase().includes(q) || (p.client || '').toLowerCase().includes(q));
       }
-
       const rf = S.filterRound || 'all_rounds';
-      if (rf !== 'all_rounds') {
-        visible = visible.filter(p => getActiveRoundKey(p) === rf);
-      }
+      if (rf !== 'all_rounds') visible = visible.filter(p => getActiveRoundKey(p) === rf);
       visible = visible.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
       if (!visible.length) {
@@ -957,6 +960,8 @@ function renderList(wrap) {
         return;
       }
 
+      const isMobile = window.innerWidth < 768;
+
       if (rf === 'all_rounds') {
         const groups = {};
         visible.forEach(p => {
@@ -964,17 +969,107 @@ function renderList(wrap) {
           if (!groups[key]) groups[key] = [];
           groups[key].push(p);
         });
+
         GROUP_ORDER.forEach(key => {
           if (!groups[key]?.length) return;
           const meta = GROUP_META[key];
+
+          // Group drop zone wrapper
+          const groupWrap = div({
+            'data-group': key,
+            style: { minHeight: 8, borderRadius: 'var(--r8)', transition: 'background .15s' },
+          });
+
           const header = div({ style: { fontSize: 11, fontWeight: 700, color: meta.color, textTransform: 'uppercase', letterSpacing: '.06em', padding: '6px 2px', display: 'flex', alignItems: 'center', gap: 6 } });
           header.appendChild(span({}, [meta.label]));
           header.appendChild(span({ style: { background: 'var(--surface2)', color: 'var(--text3)', borderRadius: 100, padding: '1px 7px', fontSize: 10, fontWeight: 600, letterSpacing: 0 } }, [String(groups[key].length)]));
-          listContainer.appendChild(header);
-          groups[key].forEach(p => renderProjectCard(listContainer, p));
+          groupWrap.appendChild(header);
+
+          groups[key].forEach(p => {
+            const card = renderProjectCard(null, p);
+            if (!isMobile) {
+              card.draggable = true;
+              card.style.cursor = 'grab';
+              card.addEventListener('dragstart', e => {
+                dragProjectId = p.id;
+                card.style.opacity = '0.45';
+                e.dataTransfer.effectAllowed = 'move';
+              });
+              card.addEventListener('dragend', () => {
+                dragProjectId = null;
+                card.style.opacity = '';
+                // Clean up all drop highlights
+                listContainer.querySelectorAll('[data-group]').forEach(el => {
+                  el.style.background = '';
+                  el.style.outline = '';
+                });
+              });
+            }
+            groupWrap.appendChild(card);
+          });
+
+          // Drop zone events (desktop only)
+          if (!isMobile) {
+            groupWrap.addEventListener('dragover', e => {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = 'move';
+              groupWrap.style.background = 'var(--accent-bg)';
+              groupWrap.style.outline = '2px dashed var(--accent)';
+              groupWrap.style.borderRadius = 'var(--r8)';
+            });
+            groupWrap.addEventListener('dragleave', e => {
+              if (!groupWrap.contains(e.relatedTarget)) {
+                groupWrap.style.background = '';
+                groupWrap.style.outline = '';
+              }
+            });
+            groupWrap.addEventListener('drop', async e => {
+              e.preventDefault();
+              groupWrap.style.background = '';
+              groupWrap.style.outline = '';
+              if (!dragProjectId || key === 'done' || key === 'no_rounds') return;
+              const projects = getProjects();
+              const pidx = projects.findIndex(x => x.id === dragProjectId);
+              if (pidx === -1) return;
+              const proj = projects[pidx];
+              const targetRoundNum = key === 'moodboard' ? null : key === 'r4plus' ? 4 : Number(key.replace('r',''));
+
+              // Move active round to match target group
+              const pRounds = proj.rounds || [];
+              if (key === 'moodboard') {
+                // Set first moodboard round to inprogress, others pending
+                pRounds.forEach(r => {
+                  const lbl = (r.label || '').toLowerCase();
+                  const pkg = (r.pkg || '').toLowerCase();
+                  if (lbl.includes('moodboard') || pkg.includes('moodboard')) r.status = 'inprogress';
+                  else if (r.status === 'inprogress') r.status = 'pending';
+                });
+              } else {
+                // Group rounds by pkg
+                const pkgs = [...new Set(pRounds.map(r => r.pkg || ''))];
+                pkgs.forEach(pkg => {
+                  const siblings = pRounds.filter(r => (r.pkg || '') === pkg);
+                  siblings.forEach((r, i) => {
+                    const rNum = i + 1;
+                    if (rNum < targetRoundNum) r.status = 'done';
+                    else if (rNum === targetRoundNum) r.status = 'inprogress';
+                    else r.status = 'pending';
+                  });
+                });
+              }
+              await saveAndSync(projects);
+              render();
+              showToast('✅ Đã chuyển sang ' + meta.label);
+            });
+          }
+
+          listContainer.appendChild(groupWrap);
         });
       } else {
-        visible.forEach(p => renderProjectCard(listContainer, p));
+        visible.forEach(p => {
+          const card = renderProjectCard(null, p);
+          listContainer.appendChild(card);
+        });
       }
     }
 
@@ -1121,7 +1216,8 @@ function renderProjectCard(wrap, p, isArchived = false) {
     }, [isArchived ? '↩️ Khôi phục' : '📦 Archive']);
     bot.appendChild(archiveBtn);
     card.appendChild(bot);
-    wrap.appendChild(card);
+    if (wrap) wrap.appendChild(card);
+    return card;
 }
 
 // ── Monthly Card ───────────────────────────────────────────────────────────────
