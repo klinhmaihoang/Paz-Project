@@ -937,8 +937,29 @@ function renderList(wrap) {
     const listContainer = div({ id: 'project-list-container' });
     wrap.appendChild(listContainer);
 
-    // ── Drag state ────────────────────────────────────────────────────────────
+    // ── Drag state + auto-scroll ──────────────────────────────────────────────
     let dragProjectId = null;
+    let autoScrollTimer = null;
+
+    function startAutoScroll(e) {
+      stopAutoScroll();
+      const ZONE = 120, SPEED = 12;
+      const y = e.clientY;
+      const vh = window.innerHeight;
+      if (y < ZONE) {
+        autoScrollTimer = setInterval(() => window.scrollBy(0, -SPEED * (1 - y / ZONE)), 16);
+      } else if (y > vh - ZONE) {
+        autoScrollTimer = setInterval(() => window.scrollBy(0, SPEED * (1 - (vh - y) / ZONE)), 16);
+      }
+    }
+
+    function stopAutoScroll() {
+      if (autoScrollTimer) { clearInterval(autoScrollTimer); autoScrollTimer = null; }
+    }
+
+    document.addEventListener('dragover', e => { startAutoScroll(e); });
+    document.addEventListener('dragend',  () => stopAutoScroll());
+    document.addEventListener('drop',     () => stopAutoScroll());
 
     function renderProjectList() {
       listContainer.innerHTML = '';
