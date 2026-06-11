@@ -887,6 +887,19 @@ function renderList(wrap) {
       if (!rounds.length) return 'no_rounds';
       const allDone = rounds.every(r => r.status === 'done');
       if (allDone) return 'done';
+
+      // Priority check: if project has a Moodboard package and ALL its rounds
+      // are still pending (not started), classify as moodboard regardless of
+      // which round is "active" for other packages.
+      const moodboardRounds = rounds.filter(r => {
+        const lbl = (r.label || '').toLowerCase();
+        const pkg = (r.pkg || '').toLowerCase();
+        return lbl.includes('moodboard') || pkg.includes('moodboard');
+      });
+      if (moodboardRounds.length && moodboardRounds.every(r => r.status === 'pending')) {
+        return 'moodboard';
+      }
+
       const activeIdx = rounds.findIndex(r => r.status === 'inprogress' || r.status === 'review');
       const targetIdx = activeIdx !== -1 ? activeIdx : (() => {
         const lastDone = rounds.map(r => r.status).lastIndexOf('done');
@@ -895,7 +908,7 @@ function renderList(wrap) {
       if (targetIdx < 0 || targetIdx >= rounds.length) return 'no_rounds';
       const targetRound = rounds[targetIdx];
 
-      // Moodboard check — label or pkg contains "moodboard"
+      // Moodboard check — active round itself is moodboard
       const labelLower = (targetRound.label || '').toLowerCase();
       const pkgLower   = (targetRound.pkg  || '').toLowerCase();
       if (labelLower.includes('moodboard') || pkgLower.includes('moodboard')) return 'moodboard';
