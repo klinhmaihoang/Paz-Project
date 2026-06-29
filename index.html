@@ -334,87 +334,131 @@ function setState(patch) {
   render();
 }
 
-// ── JSONBin Sync ───────────────────────────────────────────────────────────────
+// ── Cloud Sync — multi-provider ────────────────────────────────────────────────
+// Providers: 'jsonbin' | 'extendclass'
+
+function getSyncProvider() { return getConfig().syncProvider || 'jsonbin'; }
+
+// ── JSONBin adapter ───────────────────────────────────────────────────────────
 const JSONBIN_BASE = 'https://api.jsonbin.io/v3';
 
+async function jsonbinPush(cfg, payload) {
+  const res = await fetch(`${JSONBIN_BASE}/b/${cfg.jsonbinBin}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', 'X-Master-Key': cfg.jsonbinKey },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+}
+async function jsonbinPull(cfg) {
+  const res = await fetch(`${JSONBIN_BASE}/b/${cfg.jsonbinBin}/latest`, {
+    headers: { 'X-Master-Key': cfg.jsonbinKey },
+  });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const data = await res.json();
+  if (!data.record) throw new Error('Invalid data');
+  return data.record;
+}
+async function createJsonBin(key) {
+  const res = await fetch(`${JSONBIN_BASE}/b`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Master-Key': key, 'X-Bin-Name': 'paz-project', 'X-Bin-Private': 'true' },
+    body: JSON.stringify({ projects: getProjects(), updatedAt: new Date().toISOString() }),
+  });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const data = await res.json();
+  return data.metadata.id;
+}
+
+// ── ExtendClass adapter ───────────────────────────────────────────────────────
+// Free JSON storage: https://extendsclass.com/json-storage.html
+// POST /bin — create  |  GET /bin/{id} — read  |  PUT /bin/{id} — update
+const EXTENDCLASS_BASE = 'https://json.extendsclass.com';
+
+async function extendclassPush(cfg, payload) {
+  const res = await fetch(`${EXTENDCLASS_BASE}/bin/${cfg.ecBinId}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(cfg.ecPassword ? { 'Security-key': cfg.ecPassword } : {}),
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+}
+async function extendclassPull(cfg) {
+  const res = await fetch(`${EXTENDCLASS_BASE}/bin/${cfg.ecBinId}`, {
+    headers: { ...(cfg.ecPassword ? { 'Security-key': cfg.ecPassword } : {}) },
+  });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const data = await res.json();
+  if (!Array.isArray(data.projects)) throw new Error('Invalid data');
+  return data;
+}
+async function createExtendclassBin(password) {
+  const res = await fetch(`${EXTENDCLASS_BASE}/bin`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(password ? { 'Security-key': password } : {}),
+    },
+    body: JSON.stringify({ projects: getProjects(), monthly: getMonthlyProjects(), updatedAt: new Date().toISOString() }),
+  });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const data = await res.json();
+  return data.id;
+}
+
+// ── Unified syncPush / syncPull ───────────────────────────────────────────────
 async function syncPush() {
   const cfg = getConfig();
-  if (!cfg.jsonbinKey || !cfg.jsonbinBin) return false;
-  S.syncStatus = 'syncing';
-  updateSyncIndicator();
+  const provider = getSyncProvider();
+  const hasConfig = provider === 'extendclass' ? cfg.ecBinId : (cfg.jsonbinKey && cfg.jsonbinBin);
+  if (!hasConfig) return false;
+  S.syncStatus = 'syncing'; updateSyncIndicator();
   try {
-    // Include shared config (tgToken, tgChatId, reminderHour) in cloud so all devices get it
     const sharedCfg = { tgToken: cfg.tgToken || '', tgChatId: cfg.tgChatId || '', reminderHour: cfg.reminderHour ?? 8 };
-    const res = await fetch(`${JSONBIN_BASE}/b/${cfg.jsonbinBin}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Master-Key': cfg.jsonbinKey,
-      },
-      body: JSON.stringify({ projects: getProjects(), monthly: getMonthlyProjects(), sharedCfg, updatedAt: new Date().toISOString() }),
-    });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    S.syncStatus = 'ok';
-    updateSyncIndicator();
+    const payload = { projects: getProjects(), monthly: getMonthlyProjects(), sharedCfg, updatedAt: new Date().toISOString() };
+    if (provider === 'extendclass') await extendclassPush(cfg, payload);
+    else await jsonbinPush(cfg, payload);
+    S.syncStatus = 'ok'; S.syncError = null; updateSyncIndicator();
     return true;
   } catch (e) {
-    S.syncStatus = 'err';
-    S.syncError = e.message;
-    updateSyncIndicator();
+    S.syncStatus = 'err'; S.syncError = e.message; updateSyncIndicator();
     return false;
   }
 }
 
 async function syncPull() {
   const cfg = getConfig();
-  if (!cfg.jsonbinKey || !cfg.jsonbinBin) return false;
-  S.syncStatus = 'syncing';
-  updateSyncIndicator();
+  const provider = getSyncProvider();
+  const hasConfig = provider === 'extendclass' ? cfg.ecBinId : (cfg.jsonbinKey && cfg.jsonbinBin);
+  if (!hasConfig) return false;
+  S.syncStatus = 'syncing'; updateSyncIndicator();
   try {
-    const res = await fetch(`${JSONBIN_BASE}/b/${cfg.jsonbinBin}/latest`, {
-      headers: { 'X-Master-Key': cfg.jsonbinKey },
-    });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const data = await res.json();
-    const remote = data.record;
+    let remote;
+    if (provider === 'extendclass') remote = await extendclassPull(cfg);
+    else remote = await jsonbinPull(cfg);
     if (remote && Array.isArray(remote.projects)) {
       saveProjects(remote.projects);
       if (Array.isArray(remote.monthly)) saveMonthlyProjects(remote.monthly);
       if (remote.sharedCfg) {
         const localCfg = getConfig();
-        const merged = { ...remote.sharedCfg, ...localCfg, jsonbinKey: localCfg.jsonbinKey, jsonbinBin: localCfg.jsonbinBin };
+        const merged = { ...remote.sharedCfg, ...localCfg,
+          jsonbinKey: localCfg.jsonbinKey, jsonbinBin: localCfg.jsonbinBin,
+          ecBinId: localCfg.ecBinId, ecPassword: localCfg.ecPassword };
         if (!localCfg.tgToken && remote.sharedCfg.tgToken) merged.tgToken = remote.sharedCfg.tgToken;
         if (!localCfg.tgChatId && remote.sharedCfg.tgChatId) merged.tgChatId = remote.sharedCfg.tgChatId;
         saveConfig(merged);
       }
-      S.syncStatus = 'ok';
-      S.syncError = null;
-      updateSyncIndicator();
+      S.syncStatus = 'ok'; S.syncError = null; updateSyncIndicator();
       return true;
     }
     throw new Error('Invalid data');
   } catch (e) {
-    S.syncStatus = 'err';
-    S.syncError = e.message;
-    updateSyncIndicator();
+    S.syncStatus = 'err'; S.syncError = e.message; updateSyncIndicator();
     return false;
   }
-}
-
-async function createJsonBin(key) {
-  const res = await fetch(`${JSONBIN_BASE}/b`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Master-Key': key,
-      'X-Bin-Name': 'paz-project',
-      'X-Bin-Private': 'true',
-    },
-    body: JSON.stringify({ projects: getProjects(), updatedAt: new Date().toISOString() }),
-  });
-  if (!res.ok) throw new Error('HTTP ' + res.status);
-  const data = await res.json();
-  return data.metadata.id;
 }
 
 function updateSyncIndicator() {
@@ -435,14 +479,17 @@ function updateSyncIndicator() {
 // Auto pull on load & every 60s
 async function initSync() {
   const cfg = getConfig();
-  if (cfg.jsonbinKey && cfg.jsonbinBin) {
+  const hasSyncConfig = cfg.syncProvider === 'extendclass' ? cfg.ecBinId : (cfg.jsonbinKey && cfg.jsonbinBin);
+  if (hasSyncConfig) {
     const ok = await syncPull();
     if (ok) { render(); showToast('☁️ Đã tải dữ liệu từ cloud'); }
   }
 }
 setInterval(async () => {
   const cfg = getConfig();
-  if (cfg.jsonbinKey && cfg.jsonbinBin) await syncPull();
+  const cfg2 = getConfig();
+  const hasSyncConfig2 = cfg2.syncProvider === 'extendclass' ? cfg2.ecBinId : (cfg2.jsonbinKey && cfg2.jsonbinBin);
+  if (hasSyncConfig2) await syncPull();
 }, 60000);
 
 // Helper: save + push
@@ -874,7 +921,8 @@ function renderList(wrap) {
     ]));
     toolbar.appendChild(btn({ className: 'btn btn-primary', onClick: () => setState({ modal: 'new_project' }) }, ['+ Dự án mới']));
     const cfg = getConfig();
-    if (cfg.jsonbinKey && cfg.jsonbinBin) {
+    const hasSyncCfg = cfg.syncProvider === 'extendclass' ? cfg.ecBinId : (cfg.jsonbinKey && cfg.jsonbinBin);
+    if (hasSyncCfg) {
       toolbar.appendChild(btn({ className: 'btn btn-secondary btn-sm', onClick: async () => {
         const ok = await syncPull(); if (ok) { render(); showToast('☁️ Đã tải từ cloud!'); } else showToast('❌ Sync thất bại!');
       }}, ['☁️ Sync']));
@@ -2029,75 +2077,121 @@ function renderSettings(wrap) {
     div({ style: { fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 600 } }, ['Cài đặt']),
   ]));
 
-  // ── JSONBin Section ──────────────────────────────────────────────────────────
-  const jbCard = div({ className: 'settings-section' });
-  jbCard.appendChild(div({ className: 'settings-section-title' }, ['☁️ Sync đa thiết bị — JSONBin']));
-  jbCard.appendChild(div({ className: 'settings-section-desc' }, ['Dữ liệu sẽ tự đồng bộ mỗi phút khi mở app. Đăng ký miễn phí tại jsonbin.io → vào Account → Master Key.']));
+  // ── Sync Section ─────────────────────────────────────────────────────────────
+  const syncCard = div({ className: 'settings-section' });
+  syncCard.appendChild(div({ className: 'settings-section-title' }, ['☁️ Sync đa thiết bị']));
+  syncCard.appendChild(div({ className: 'settings-section-desc' }, ['Chọn dịch vụ lưu trữ cloud để đồng bộ dữ liệu giữa các thiết bị.']));
 
-  jbCard.appendChild(div({ className: 'info-box' }, [
-    '📋 Hướng dẫn setup:\n',
-    '1. Đăng ký tại jsonbin.io (miễn phí)\n',
-    '2. Vào Account Settings → API Keys → copy Master Key\n',
-    '3. Dán vào ô dưới → bấm "Tạo Bin mới"\n',
-    '4. Dùng trên thiết bị khác: nhập cùng Master Key + Bin ID',
-  ]));
-
-  const jbKeyInp = inp({ className: 'input', placeholder: '$2b$10$... (Master Key)', value: cfg.jsonbinKey || '' });
-  const jbBinInp = inp({ className: 'input', placeholder: 'Bin ID (để trống nếu chưa có)', value: cfg.jsonbinBin || '', style: { marginTop: 8 } });
-
-  const jbStatus = div({ style: { fontSize: 12, color: 'var(--text3)', marginTop: 8, minHeight: 20 } });
-
-  const jbBtnRow = div({ style: { display: 'flex', gap: 8, marginTop: 10 } });
-
-  jbBtnRow.appendChild(btn({ className: 'btn btn-primary', onClick: async () => {
-    const key = jbKeyInp.value.trim();
-    if (!key) { showToast('❌ Nhập Master Key!'); return; }
-    jbStatus.textContent = '⏳ Đang tạo bin...';
-    try {
-      const binId = await createJsonBin(key);
-      const newCfg = { ...cfg, jsonbinKey: key, jsonbinBin: binId };
-      saveConfig(newCfg);
-      jbBinInp.value = binId;
-      jbStatus.textContent = '✅ Tạo thành công! Bin ID: ' + binId;
-      jbStatus.style.color = 'var(--green)';
-      S.syncStatus = 'ok';
-      updateSyncIndicator();
-      showToast('✅ JSONBin đã sẵn sàng!');
-    } catch (e) {
-      jbStatus.textContent = '❌ Lỗi: ' + e.message + ' — Kiểm tra lại Master Key';
-      jbStatus.style.color = 'var(--red)';
-    }
-  }}, ['Tạo Bin mới']));
-
-  jbBtnRow.appendChild(btn({ className: 'btn btn-secondary', onClick: async () => {
-    const key = jbKeyInp.value.trim();
-    const binId = jbBinInp.value.trim();
-    if (!key || !binId) { showToast('❌ Nhập đủ Key và Bin ID!'); return; }
-    saveConfig({ ...cfg, jsonbinKey: key, jsonbinBin: binId });
-    jbStatus.textContent = '⏳ Đang kết nối...';
-    const ok = await syncPull();
-    if (ok) {
-      jbStatus.textContent = '✅ Kết nối thành công & đã tải dữ liệu!';
-      jbStatus.style.color = 'var(--green)';
+  // Provider toggle
+  const providerSel = el('select', { className: 'input', style: { marginBottom: 14 },
+    onChange: e => {
+      saveConfig({ ...getConfig(), syncProvider: e.target.value });
       render();
-      showToast('☁️ Sync thành công!');
-    } else {
-      jbStatus.textContent = '❌ Kết nối thất bại — Kiểm tra Key và Bin ID';
-      jbStatus.style.color = 'var(--red)';
+    },
+  }, [
+    el('option', { value: 'jsonbin',     ...(cfg.syncProvider !== 'extendclass' ? { selected: '' } : {}) }, ['JSONBin.io']),
+    el('option', { value: 'extendclass', ...(cfg.syncProvider === 'extendclass' ? { selected: '' } : {}) }, ['ExtendClass (miễn phí, không giới hạn)']),
+  ]);
+  syncCard.appendChild(el('label', { className: 'input-label' }, ['Dịch vụ cloud']));
+  syncCard.appendChild(providerSel);
+
+  const syncStatus = div({ style: { fontSize: 12, color: 'var(--text3)', marginTop: 8, minHeight: 20 } });
+
+  if ((cfg.syncProvider || 'jsonbin') === 'extendclass') {
+    // ── ExtendClass ───────────────────────────────────────────────────────────
+    syncCard.appendChild(div({ className: 'info-box' }, [
+      '📋 ExtendClass — miễn phí, không giới hạn requests:\n',
+      '1. Vào extendsclass.com/json-storage.html\n',
+      '2. Bấm "Tạo Bin mới" bên dưới → copy Bin ID\n',
+      '3. Thiết bị khác: nhập Bin ID + mật khẩu (nếu có) → "Kết nối"\n',
+    ]));
+    const ecPassInp = inp({ className: 'input', type: 'password', placeholder: 'Mật khẩu bảo vệ (tuỳ chọn)', value: cfg.ecPassword || '' });
+    const ecBinInp  = inp({ className: 'input', placeholder: 'Bin ID (để trống nếu chưa có)', value: cfg.ecBinId || '', style: { marginTop: 8 } });
+    syncCard.appendChild(el('label', { className: 'input-label' }, ['Mật khẩu (tuỳ chọn)']));
+    syncCard.appendChild(ecPassInp);
+    syncCard.appendChild(el('label', { className: 'input-label', style: { marginTop: 8 } }, ['Bin ID']));
+    syncCard.appendChild(ecBinInp);
+    const ecBtnRow = div({ style: { display: 'flex', gap: 8, marginTop: 10 } });
+    ecBtnRow.appendChild(btn({ className: 'btn btn-primary', onClick: async () => {
+      syncStatus.textContent = '⏳ Đang tạo bin...';
+      try {
+        const pass = ecPassInp.value.trim();
+        const id = await createExtendclassBin(pass);
+        saveConfig({ ...getConfig(), ecBinId: id, ecPassword: pass });
+        ecBinInp.value = id;
+        syncStatus.textContent = '✅ Tạo thành công! Bin ID: ' + id;
+        syncStatus.style.color = 'var(--green)';
+        S.syncStatus = 'ok'; updateSyncIndicator();
+        showToast('✅ ExtendClass sẵn sàng!');
+      } catch(e) {
+        syncStatus.textContent = '❌ ' + e.message;
+        syncStatus.style.color = 'var(--red)';
+      }
+    }}, ['Tạo Bin mới']));
+    ecBtnRow.appendChild(btn({ className: 'btn btn-secondary', onClick: async () => {
+      const id = ecBinInp.value.trim(), pass = ecPassInp.value.trim();
+      if (!id) { showToast('❌ Nhập Bin ID!'); return; }
+      saveConfig({ ...getConfig(), ecBinId: id, ecPassword: pass });
+      syncStatus.textContent = '⏳ Đang kết nối...';
+      const ok = await syncPull();
+      if (ok) { syncStatus.textContent = '✅ Kết nối & đồng bộ thành công!'; syncStatus.style.color = 'var(--green)'; render(); }
+      else { syncStatus.textContent = '❌ Thất bại — kiểm tra Bin ID và mật khẩu'; syncStatus.style.color = 'var(--red)'; }
+    }}, ['Kết nối có sẵn']));
+    syncCard.appendChild(ecBtnRow);
+    if (cfg.ecBinId) {
+      const idBox = div({ style: { marginTop: 10, padding: '8px 12px', background: 'var(--surface2)', borderRadius: 'var(--r8)', fontSize: 12 } });
+      idBox.innerHTML = '🔑 Bin ID: <code style="background:#e8e3dc;padding:2px 6px;border-radius:4px">' + cfg.ecBinId + '</code> — dùng ID này trên thiết bị khác';
+      syncCard.appendChild(idBox);
     }
-  }}, ['Kết nối Bin có sẵn']));
-
-  jbCard.appendChild(div({ className: 'field' }, [el('label', { className: 'input-label' }, ['Master Key']), jbKeyInp]));
-  jbCard.appendChild(div({ className: 'field' }, [el('label', { className: 'input-label' }, ['Bin ID']), jbBinInp]));
-  jbCard.appendChild(jbBtnRow);
-  jbCard.appendChild(jbStatus);
-
-  if (cfg.jsonbinBin) {
-    const binIdDisplay = div({ style: { marginTop: 12, padding: '8px 12px', background: 'var(--surface2)', borderRadius: 'var(--r8)', fontSize: 12, color: 'var(--text2)' } });
-    binIdDisplay.innerHTML = '🔑 Bin ID hiện tại: <code style="background:#e8e3dc;padding:2px 6px;border-radius:4px;font-size:11px;">' + cfg.jsonbinBin + '</code> — Dùng ID này để kết nối từ thiết bị khác';
-    jbCard.appendChild(binIdDisplay);
+  } else {
+    // ── JSONBin ───────────────────────────────────────────────────────────────
+    syncCard.appendChild(div({ className: 'info-box' }, [
+      '📋 JSONBin — giới hạn 10.000 requests/tháng (free):\n',
+      '1. jsonbin.io → Account Settings → API Keys → copy Master Key\n',
+      '2. Dán vào ô dưới → "Tạo Bin mới"\n',
+      '3. Thiết bị khác: nhập Master Key + Bin ID → "Kết nối"\n',
+    ]));
+    const jbKeyInp = inp({ className: 'input', placeholder: '$2b$10$... (Master Key)', value: cfg.jsonbinKey || '' });
+    const jbBinInp = inp({ className: 'input', placeholder: 'Bin ID (để trống nếu chưa có)', value: cfg.jsonbinBin || '', style: { marginTop: 8 } });
+    syncCard.appendChild(el('label', { className: 'input-label' }, ['Master Key'])); syncCard.appendChild(jbKeyInp);
+    syncCard.appendChild(el('label', { className: 'input-label', style: { marginTop: 8 } }, ['Bin ID'])); syncCard.appendChild(jbBinInp);
+    const jbBtnRow = div({ style: { display: 'flex', gap: 8, marginTop: 10 } });
+    jbBtnRow.appendChild(btn({ className: 'btn btn-primary', onClick: async () => {
+      const key = jbKeyInp.value.trim();
+      if (!key) { showToast('❌ Nhập Master Key!'); return; }
+      syncStatus.textContent = '⏳ Đang tạo bin...';
+      try {
+        const binId = await createJsonBin(key);
+        saveConfig({ ...getConfig(), jsonbinKey: key, jsonbinBin: binId });
+        jbBinInp.value = binId;
+        syncStatus.textContent = '✅ Tạo thành công! Bin ID: ' + binId;
+        syncStatus.style.color = 'var(--green)';
+        S.syncStatus = 'ok'; updateSyncIndicator();
+        showToast('✅ JSONBin sẵn sàng!');
+      } catch(e) {
+        syncStatus.textContent = '❌ Lỗi: ' + e.message + ' — Kiểm tra Master Key';
+        syncStatus.style.color = 'var(--red)';
+      }
+    }}, ['Tạo Bin mới']));
+    jbBtnRow.appendChild(btn({ className: 'btn btn-secondary', onClick: async () => {
+      const key = jbKeyInp.value.trim(), binId = jbBinInp.value.trim();
+      if (!key || !binId) { showToast('❌ Nhập đủ Key và Bin ID!'); return; }
+      saveConfig({ ...getConfig(), jsonbinKey: key, jsonbinBin: binId });
+      syncStatus.textContent = '⏳ Đang kết nối...';
+      const ok = await syncPull();
+      if (ok) { syncStatus.textContent = '✅ Kết nối thành công!'; syncStatus.style.color = 'var(--green)'; render(); showToast('☁️ Sync thành công!'); }
+      else { syncStatus.textContent = '❌ Kết nối thất bại — Kiểm tra Key và Bin ID'; syncStatus.style.color = 'var(--red)'; }
+    }}, ['Kết nối Bin có sẵn']));
+    syncCard.appendChild(jbBtnRow);
+    if (cfg.jsonbinBin) {
+      const idBox = div({ style: { marginTop: 10, padding: '8px 12px', background: 'var(--surface2)', borderRadius: 'var(--r8)', fontSize: 12 } });
+      idBox.innerHTML = '🔑 Bin ID: <code style="background:#e8e3dc;padding:2px 6px;border-radius:4px">' + cfg.jsonbinBin + '</code> — dùng ID này trên thiết bị khác';
+      syncCard.appendChild(idBox);
+    }
   }
-  wrap.appendChild(jbCard);
+
+  syncCard.appendChild(syncStatus);
+  wrap.appendChild(syncCard);
 
   // ── Telegram Section ─────────────────────────────────────────────────────────
   const tgCard = div({ className: 'settings-section' });
