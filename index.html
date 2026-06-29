@@ -415,17 +415,56 @@ async function createExtendclassBin(password) {
   return data.id;
 }
 
-// ── Unified syncPush / syncPull ───────────────────────────────────────────────
+// ── GitHub Gist adapter ───────────────────────────────────────────────────────
+// Free, no request limit, CORS always OK
+// Token: github.com → Settings → Developer Settings → Personal access tokens → gist scope only
+async function gistPush(cfg, payload) {
+  const res = await fetch(`https://api.github.com/gists/${cfg.gistId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'token ' + cfg.gistToken },
+    body: JSON.stringify({ files: { 'paz-project.json': { content: JSON.stringify(payload) } } }),
+  });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+}
+async function gistPull(cfg) {
+  const res = await fetch(`https://api.github.com/gists/${cfg.gistId}`, {
+    headers: { 'Authorization': 'token ' + cfg.gistToken },
+  });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const data = await res.json();
+  const content = data.files?.['paz-project.json']?.content;
+  if (!content) throw new Error('File not found in gist');
+  const parsed = JSON.parse(content);
+  if (!Array.isArray(parsed.projects)) throw new Error('Invalid data');
+  return parsed;
+}
+async function createGist(token) {
+  const res = await fetch('https://api.github.com/gists', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'token ' + token },
+    body: JSON.stringify({
+      description: 'Paz Project Data',
+      public: false,
+      files: { 'paz-project.json': { content: JSON.stringify({ projects: getProjects(), monthly: getMonthlyProjects(), updatedAt: new Date().toISOString() }) } },
+    }),
+  });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const data = await res.json();
+  return data.id;
+}
 async function syncPush() {
   const cfg = getConfig();
   const provider = getSyncProvider();
-  const hasConfig = provider === 'extendclass' ? cfg.ecBinId : (cfg.jsonbinKey && cfg.jsonbinBin);
+  const hasConfig = provider === 'extendclass' ? cfg.ecBinId
+    : provider === 'gist' ? (cfg.gistToken && cfg.gistId)
+    : (cfg.jsonbinKey && cfg.jsonbinBin);
   if (!hasConfig) return false;
   S.syncStatus = 'syncing'; updateSyncIndicator();
   try {
     const sharedCfg = { tgToken: cfg.tgToken || '', tgChatId: cfg.tgChatId || '', reminderHour: cfg.reminderHour ?? 8 };
     const payload = { projects: getProjects(), monthly: getMonthlyProjects(), sharedCfg, updatedAt: new Date().toISOString() };
     if (provider === 'extendclass') await extendclassPush(cfg, payload);
+    else if (provider === 'gist') await gistPush(cfg, payload);
     else await jsonbinPush(cfg, payload);
     S.syncStatus = 'ok'; S.syncError = null; updateSyncIndicator();
     return true;
@@ -438,12 +477,15 @@ async function syncPush() {
 async function syncPull() {
   const cfg = getConfig();
   const provider = getSyncProvider();
-  const hasConfig = provider === 'extendclass' ? cfg.ecBinId : (cfg.jsonbinKey && cfg.jsonbinBin);
+  const hasConfig = provider === 'extendclass' ? cfg.ecBinId
+    : provider === 'gist' ? (cfg.gistToken && cfg.gistId)
+    : (cfg.jsonbinKey && cfg.jsonbinBin);
   if (!hasConfig) return false;
   S.syncStatus = 'syncing'; updateSyncIndicator();
   try {
     let remote;
     if (provider === 'extendclass') remote = await extendclassPull(cfg);
+    else if (provider === 'gist') remote = await gistPull(cfg);
     else remote = await jsonbinPull(cfg);
     if (remote && Array.isArray(remote.projects)) {
       saveProjects(remote.projects);
@@ -452,7 +494,8 @@ async function syncPull() {
         const localCfg = getConfig();
         const merged = { ...remote.sharedCfg, ...localCfg,
           jsonbinKey: localCfg.jsonbinKey, jsonbinBin: localCfg.jsonbinBin,
-          ecBinId: localCfg.ecBinId, ecPassword: localCfg.ecPassword };
+          ecBinId: localCfg.ecBinId, ecPassword: localCfg.ecPassword,
+          gistId: localCfg.gistId, gistToken: localCfg.gistToken };
         if (!localCfg.tgToken && remote.sharedCfg.tgToken) merged.tgToken = remote.sharedCfg.tgToken;
         if (!localCfg.tgChatId && remote.sharedCfg.tgChatId) merged.tgChatId = remote.sharedCfg.tgChatId;
         saveConfig(merged);
@@ -485,7 +528,9 @@ function updateSyncIndicator() {
 // Auto pull on load & every 60s
 async function initSync() {
   const cfg = getConfig();
-  const hasSyncConfig = cfg.syncProvider === 'extendclass' ? cfg.ecBinId : (cfg.jsonbinKey && cfg.jsonbinBin);
+  const hasSyncConfig = cfg.syncProvider === 'extendclass' ? cfg.ecBinId
+    : cfg.syncProvider === 'gist' ? (cfg.gistToken && cfg.gistId)
+    : (cfg.jsonbinKey && cfg.jsonbinBin);
   if (hasSyncConfig) {
     const ok = await syncPull();
     if (ok) { render(); showToast('☁️ Đã tải dữ liệu từ cloud'); }
@@ -494,7 +539,9 @@ async function initSync() {
 setInterval(async () => {
   const cfg = getConfig();
   const cfg2 = getConfig();
-  const hasSyncConfig2 = cfg2.syncProvider === 'extendclass' ? cfg2.ecBinId : (cfg2.jsonbinKey && cfg2.jsonbinBin);
+  const hasSyncConfig2 = cfg2.syncProvider === 'extendclass' ? cfg2.ecBinId
+    : cfg2.syncProvider === 'gist' ? (cfg2.gistToken && cfg2.gistId)
+    : (cfg2.jsonbinKey && cfg2.jsonbinBin);
   if (hasSyncConfig2) await syncPull();
 }, 60000);
 
@@ -927,7 +974,9 @@ function renderList(wrap) {
     ]));
     toolbar.appendChild(btn({ className: 'btn btn-primary', onClick: () => setState({ modal: 'new_project' }) }, ['+ Dự án mới']));
     const cfg = getConfig();
-    const hasSyncCfg = cfg.syncProvider === 'extendclass' ? cfg.ecBinId : (cfg.jsonbinKey && cfg.jsonbinBin);
+    const hasSyncCfg = cfg.syncProvider === 'extendclass' ? cfg.ecBinId
+      : cfg.syncProvider === 'gist' ? (cfg.gistToken && cfg.gistId)
+      : (cfg.jsonbinKey && cfg.jsonbinBin);
     if (hasSyncCfg) {
       toolbar.appendChild(btn({ className: 'btn btn-secondary btn-sm', onClick: async () => {
         const ok = await syncPull(); if (ok) { render(); showToast('☁️ Đã tải từ cloud!'); } else showToast('❌ Sync thất bại!');
@@ -2095,15 +2144,62 @@ function renderSettings(wrap) {
       render();
     },
   }, [
-    el('option', { value: 'jsonbin',     ...(cfg.syncProvider !== 'extendclass' ? { selected: '' } : {}) }, ['JSONBin.io']),
-    el('option', { value: 'extendclass', ...(cfg.syncProvider === 'extendclass' ? { selected: '' } : {}) }, ['ExtendClass (miễn phí, không giới hạn)']),
+    el('option', { value: 'jsonbin',     ...(cfg.syncProvider !== 'extendclass' && cfg.syncProvider !== 'gist' ? { selected: '' } : {}) }, ['JSONBin.io (10k req/tháng)']),
+    el('option', { value: 'gist',        ...(cfg.syncProvider === 'gist'        ? { selected: '' } : {}) }, ['GitHub Gist (khuyến nghị — miễn phí, không giới hạn)']),
+    el('option', { value: 'extendclass', ...(cfg.syncProvider === 'extendclass' ? { selected: '' } : {}) }, ['ExtendClass']),
   ]);
   syncCard.appendChild(el('label', { className: 'input-label' }, ['Dịch vụ cloud']));
   syncCard.appendChild(providerSel);
 
   const syncStatus = div({ style: { fontSize: 12, color: 'var(--text3)', marginTop: 8, minHeight: 20 } });
 
-  if ((cfg.syncProvider || 'jsonbin') === 'extendclass') {
+  if ((cfg.syncProvider || 'jsonbin') === 'gist') {
+    // ── GitHub Gist ───────────────────────────────────────────────────────────
+    syncCard.appendChild(div({ className: 'info-box' }, [
+      '📋 GitHub Gist — miễn phí, không giới hạn, CORS OK:\n',
+      '1. Vào github.com → Settings → Developer settings → Personal access tokens → Tokens (classic)\n',
+      '2. Generate new token → chỉ tick scope "gist" → copy token\n',
+      '3. Dán token vào ô dưới → bấm "Tạo Gist mới"\n',
+      '4. Thiết bị khác: nhập cùng token + Gist ID → "Kết nối"\n',
+    ]));
+    const gistTokenInp = inp({ className: 'input', type: 'password', placeholder: 'ghp_xxxxxxxxxxxx (Personal Access Token)', value: cfg.gistToken || '' });
+    const gistIdInp    = inp({ className: 'input', placeholder: 'Gist ID (để trống nếu chưa có)', value: cfg.gistId || '', style: { marginTop: 8 } });
+    syncCard.appendChild(el('label', { className: 'input-label' }, ['GitHub Token'])); syncCard.appendChild(gistTokenInp);
+    syncCard.appendChild(el('label', { className: 'input-label', style: { marginTop: 8 } }, ['Gist ID'])); syncCard.appendChild(gistIdInp);
+    const gistBtnRow = div({ style: { display: 'flex', gap: 8, marginTop: 10 } });
+    gistBtnRow.appendChild(btn({ className: 'btn btn-primary', onClick: async () => {
+      const token = gistTokenInp.value.trim();
+      if (!token) { showToast('❌ Nhập GitHub Token!'); return; }
+      syncStatus.textContent = '⏳ Đang tạo gist...';
+      try {
+        const id = await createGist(token);
+        saveConfig({ ...getConfig(), gistToken: token, gistId: id });
+        gistIdInp.value = id;
+        syncStatus.textContent = '✅ Tạo thành công! Gist ID: ' + id;
+        syncStatus.style.color = 'var(--green)';
+        S.syncStatus = 'ok'; updateSyncIndicator();
+        showToast('✅ GitHub Gist sẵn sàng!');
+      } catch(e) {
+        syncStatus.textContent = '❌ ' + e.message + ' — Kiểm tra token (cần scope gist)';
+        syncStatus.style.color = 'var(--red)';
+      }
+    }}, ['Tạo Gist mới']));
+    gistBtnRow.appendChild(btn({ className: 'btn btn-secondary', onClick: async () => {
+      const token = gistTokenInp.value.trim(), id = gistIdInp.value.trim();
+      if (!token || !id) { showToast('❌ Nhập đủ Token và Gist ID!'); return; }
+      saveConfig({ ...getConfig(), gistToken: token, gistId: id });
+      syncStatus.textContent = '⏳ Đang kết nối...';
+      const ok = await syncPull();
+      if (ok) { syncStatus.textContent = '✅ Kết nối thành công!'; syncStatus.style.color = 'var(--green)'; render(); }
+      else { syncStatus.textContent = '❌ Thất bại — kiểm tra Token và Gist ID'; syncStatus.style.color = 'var(--red)'; }
+    }}, ['Kết nối Gist có sẵn']));
+    syncCard.appendChild(gistBtnRow);
+    if (cfg.gistId) {
+      const idBox = div({ style: { marginTop: 10, padding: '8px 12px', background: 'var(--surface2)', borderRadius: 'var(--r8)', fontSize: 12 } });
+      idBox.innerHTML = '🔑 Gist ID: <code style="background:#e8e3dc;padding:2px 6px;border-radius:4px">' + cfg.gistId + '</code>';
+      syncCard.appendChild(idBox);
+    }
+  } else if ((cfg.syncProvider || 'jsonbin') === 'extendclass') {
     // ── ExtendClass ───────────────────────────────────────────────────────────
     syncCard.appendChild(div({ className: 'info-box' }, [
       '📋 ExtendClass — miễn phí, không giới hạn requests:\n',
