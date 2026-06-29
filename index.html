@@ -373,22 +373,28 @@ async function createJsonBin(key) {
 // ── ExtendClass adapter ───────────────────────────────────────────────────────
 // Free JSON storage: https://extendsclass.com/json-storage.html
 // POST /bin — create  |  GET /bin/{id} — read  |  PUT /bin/{id} — update
-const EXTENDCLASS_BASE = 'https://json.extendsclass.com';
+// Correct base URL from official OpenAPI spec
+const EXTENDCLASS_BASE = 'https://extendsclass.com/api/json-storage';
+
+function ecHeaders(cfg, withContentType = false) {
+  const h = {};
+  if (withContentType) h['Content-Type'] = 'application/json';
+  // Only include Security-key if non-empty — sending empty string causes 401
+  if (cfg.ecPassword && cfg.ecPassword.trim()) h['Security-key'] = cfg.ecPassword.trim();
+  return h;
+}
 
 async function extendclassPush(cfg, payload) {
   const res = await fetch(`${EXTENDCLASS_BASE}/bin/${cfg.ecBinId}`, {
     method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(cfg.ecPassword ? { 'Security-key': cfg.ecPassword } : {}),
-    },
+    headers: ecHeaders(cfg, true),
     body: JSON.stringify(payload),
   });
   if (!res.ok) throw new Error('HTTP ' + res.status);
 }
 async function extendclassPull(cfg) {
   const res = await fetch(`${EXTENDCLASS_BASE}/bin/${cfg.ecBinId}`, {
-    headers: { ...(cfg.ecPassword ? { 'Security-key': cfg.ecPassword } : {}) },
+    headers: ecHeaders(cfg),
   });
   if (!res.ok) throw new Error('HTTP ' + res.status);
   const data = await res.json();
@@ -396,16 +402,16 @@ async function extendclassPull(cfg) {
   return data;
 }
 async function createExtendclassBin(password) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (password && password.trim()) headers['Security-key'] = password.trim();
   const res = await fetch(`${EXTENDCLASS_BASE}/bin`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(password ? { 'Security-key': password } : {}),
-    },
+    headers,
     body: JSON.stringify({ projects: getProjects(), monthly: getMonthlyProjects(), updatedAt: new Date().toISOString() }),
   });
   if (!res.ok) throw new Error('HTTP ' + res.status);
   const data = await res.json();
+  if (data.status !== 0) throw new Error(data.message || 'Tạo thất bại');
   return data.id;
 }
 
